@@ -19,6 +19,10 @@ from pymatgen.phonon.gruneisen import (
     GruneisenParameter,
     GruneisenPhononBandStructureSymmLine,
 )
+from pymatgen.phonon.velocity import (
+    Velocity,
+    VelocityPhononBandStructureSymmLine
+)
 from pymatgen.phonon.thermal_displacements import ThermalDisplacementMatrices
 from pymatgen.symmetry.bandstructure import HighSymmKpath
 
@@ -662,6 +666,148 @@ def get_gruneisen_ph_bs_symm_line(gruneisen_path, structure=None, structure_path
             (and therefore numerical inaccuracies) close to gamma.
     """
     return get_gs_ph_bs_symm_line_from_dict(loadfn(gruneisen_path), structure, structure_path, labels_dict, fit)
+
+
+def get_velocity(velocity_path, structure=None, structure_path=None) -> Velocity:
+    """
+    Get velocity object from mesh.yaml file including group velocities, as obtained from phonopy (Frequencies in THz!).
+    The order is structure > structure path > structure from velocities dict.
+    Newer versions of phonopy include the structure in the yaml file,
+    the structure/structure_path is kept for compatibility.
+
+    Args:
+        velocity_path: Path to mesh.yaml file including velocities (frequencies have to be in THz!)
+        structure: pymatgen Structure object
+        structure_path: path to structure in a file (e.g., POSCAR)
+
+    Returns: Velocity object
+
+    """
+    #TODO catch file reading errors
+    velocity_dict = loadfn(velocity_path)
+
+    if structure_path and structure is None:
+        structure = Structure.from_file(structure_path)
+    else:
+        try:
+            structure = get_structure_from_dict(velocity_dict)
+        except ValueError:
+            raise ValueError("\nPlease provide a structure.\n")
+
+    qpts, multiplicities, frequencies, velocity = ([] for _ in range(4))
+    phonopy_labels_dict = {}
+
+    for p in velocity_dict["phonon"]:
+        q = p["q-position"]
+        qpts.append(q)
+        if "multiplicity" in p:
+            m = p["multiplicity"]
+        else:
+            m = 1
+        multiplicities.append(m)
+        bands, velocityband = [], []
+        for b in p["band"]:
+            bands.append(b["frequency"])
+            if "group_velocity" in b:
+                # adding the vector for now
+                velocityband.append(np.sqrt(b["group_velocity"][0]**2+b["group_velocity"][1]**2+b["group_velocity"][2]**2))
+        frequencies.append(bands)
+        velocity.append(velocityband)
+        if "label" in p:
+            phonopy_labels_dict[p["label"]] = p["q-position"]
+
+    qpts_np = np.array(qpts)
+    multiplicities_np = np.array(multiplicities)
+    # transpose to match the convention in PhononBandStructure
+    frequencies_np = np.transpose(frequencies)
+    velocity_np = np.transpose(velocity)
+
+    return Velocity(
+        velocities=velocity_np,
+        qpoints=qpts_np,
+        multiplicities=multiplicities_np,
+        frequencies=frequencies_np,
+        structure=structure,
+    )
+
+
+def get_velocity_ph_bs_symm_line_from_dict(
+    velocity_dict, structure=None, structure_path=None, labels_dict=None
+) -> VelocityPhononBandStructureSymmLine:
+    r"""
+    Creates a pymatgen VecolityPhononBandStructure object from the dictionary
+    extracted by the band.yaml file including group velocties produced by phonopy. The labels
+    will be extracted from the dictionary, if present. If the 'eigenvector'
+    key is found the eigendisplacements will be calculated according to the
+    formula::
+        exp(2*pi*i*(frac_coords \\dot q) / sqrt(mass) * v
+    and added to the object.
+    Args:
+        velocity_dict (dict): the dictionary extracted from the band.yaml file
+        structure (Structure): pymatgen structure object
+        structure_path: path to structure file
+        labels_dict (dict): dict that links a qpoint in frac coords to a label.
+            Its value will replace the data contained in the band.yaml.
+    """
+    print(velocity_dict)
+    if structure_path and structure is None:
+        structure = Structure.from_file(structure_path)
+    else:
+        try:
+            structure = get_structure_from_dict(velocity_dict)
+        except ValueError:
+            raise ValueError("\nPlease provide a structure.\n")
+    print(structure)
+    q_points, frequencies, velocity_params = [], [], []
+    phonopy_labels_dict: dict[str, dict[str, str]] = {}
+
+
+    for p in velocity_dict["phonon"]:
+        q = p["q-position"]
+        q_points.append(q)
+        bands, velocities_bands = [], []
+        for b in p["band"]:
+            bands.append(b["frequency"])
+            velocities_bands.append(np.sqrt(b["group_velocity"][0]**2+b["group_velocity"][1]**2+b["group_velocity"][2]**2))
+        frequencies.append(bands)
+        velocity_params.append(velocities_bands)
+        if "label" in p:
+            phonopy_labels_dict[p["label"]] = p["q-position"]
+
+    rec_latt = structure.lattice.reciprocal_lattice
+    labels_dict = labels_dict or phonopy_labels_dict
+
+    return VelocityPhononBandStructureSymmLine(
+        qpoints=np.array(q_points),
+        # transpose to match the convention in PhononBandStructure
+        frequencies=np.transpose(frequencies),
+        velocities=np.transpose(velocity_params),
+        lattice=rec_latt,
+        labels_dict=labels_dict,
+        structure=structure,
+        eigendisplacements=None,
+    )
+
+
+def get_velocity_ph_bs_symm_line(velocity_path, structure=None, structure_path=None, labels_dict=None):
+    r"""
+    Creates a pymatgen VelocityPhononBandStructure from a band.yaml file.
+    The labels will be extracted from the dictionary, if present.
+    If the 'eigenvector' key is found the eigendisplacements will be
+    calculated according to the formula:
+    \\exp(2*pi*i*(frac_coords \\dot q) / sqrt(mass) * v
+     and added to the object.
+    Args:
+        velocity_path: path to the band.yaml file
+        structure: pymatgen Structure object
+        structure_path: path to a structure file (e.g., POSCAR)
+        labels_dict: dict that links a qpoint in frac coords to a label.
+
+    """
+    #print("test")
+    dict_here=loadfn(velocity_path)
+    #print(dict_here)
+    return get_velocity_ph_bs_symm_line_from_dict(dict_here, structure, structure_path, labels_dict)
 
 
 def get_thermal_displacement_matrices(
