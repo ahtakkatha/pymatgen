@@ -1,28 +1,22 @@
 """
-This module contains classes
+This module contains classes to handle and to plot phonon
+group velocities (both on regular grid and along special symmetry paths).
 """
 
 from __future__ import annotations
 
-
-from pymatgen.phonon.plotter import freq_units
-from pymatgen.util.plotting import add_fig_kwargs, get_ax_fig_plt, pretty_plot
-from pymatgen.core import Lattice, Structure
-from pymatgen.io.phonopy import get_structure_from_dict
-from pymatgen.phonon.plotter import PhononBSPlotter
 import numpy as np
-import scipy.constants as const
-from monty.dev import requires
 from monty.json import MSONable
-from pymatgen.core import Structure
+
+from pymatgen.core import Lattice, Structure
 from pymatgen.core.lattice import Lattice
-from pymatgen.core.units import amu_to_kg
 from pymatgen.phonon.bandstructure import (
     PhononBandStructure,
     PhononBandStructureSymmLine,
 )
 from pymatgen.phonon.dos import PhononDos
-from monty.serialization import loadfn
+from pymatgen.phonon.plotter import PhononBSPlotter, freq_units
+from pymatgen.util.plotting import pretty_plot
 
 try:
     import phonopy
@@ -34,7 +28,7 @@ except ImportError as ex:
 
 class Velocity(MSONable):
     """
-    Class for Group velocities on a regular grid.
+    Class for group velocities on a regular grid.
     """
 
     def __init__(
@@ -48,13 +42,13 @@ class Velocity(MSONable):
     ):
         """
         Args:
-            qpoints: list of qpoints as numpy arrays, in frac_coords of the given lattice by default
-            velocities: list of absolute group velocities parameters as numpy arrays, shape: (3*len(structure), len(qpoints))
-            frequencies: list of phonon frequencies in THz as a numpy array with shape (3*len(structure), len(qpoints))
-            multiplicities: list of multiplicities
+            qpoints: List of qpoints as numpy arrays, in frac_coords of the given lattice by default.
+            velocities: List of absolute group velocities as numpy arrays, shape: (3*len(structure), len(qpoints)).
+            frequencies: List of phonon frequencies in THz as a numpy array with shape (3*len(structure), len(qpoints)).
+            multiplicities: List of multiplicities.
             structure: The crystal structure (as a pymatgen Structure object) associated with the velocities.
             lattice: The reciprocal lattice as a pymatgen Lattice object. Pymatgen uses the physics convention of
-                     reciprocal lattice vectors WITH a 2*pi coefficient
+                     reciprocal lattice vectors WITH a 2*pi coefficient.
         """
         self.qpoints = qpoints
         self.velocities = velocities
@@ -94,46 +88,46 @@ class Velocity(MSONable):
 
 class VelocityPlotter:
     """
-    Class to plot Velocity Object
+    Class to plot Velocity object (group velocities on regular grid)
+    with matplotlib.
     """
 
     def __init__(self, velocity):
         """
-        Class to plot information from Velocity Object
         Args:
-            velocity: Velocity Object
+            velocity: Velocity Object.
         """
         self._velocity = velocity
 
-    def get_plot(self, marker="o", markersize=None, units="thz"):
+    def get_plot(self, marker="o", markersize=6, color_q_point=True, units="thz"):
         """
-        will produce a plot
+        Get a matplotlib plot showing velocity vs. frequency.
+        Color code refers to.
         Args:
-            marker: marker for the depiction
-            markersize: size of the marker
-            units: unit for the plots, accepted units: thz, ev, mev, ha, cm-1, cm^-1
+            marker: Marker for the depiction.
+            markersize: Size of the marker.
+            color_q_point: Whether to color-code the irreducible q-points.
+            units: Unit for the plots, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
 
-        Returns: plot
+        Returns: A matplotlib.pyplot plot object.
         """
         u = freq_units(units)
 
-        xs = self._velocity.frequencies.flatten() * u.factor
-        ys = self._velocity.velocities.flatten()
-        print(xs)
-        print(ys)
+        # Retranspose for q point-wise plotting
+        xs = self._velocity.frequencies.transpose()
+        ys = self._velocity.velocities.transpose()
         plt = pretty_plot(12, 8)
 
         plt.xlabel(rf"$\mathrm{{Frequency\ ({u.label})}}$")
         plt.ylabel(r"$\mathrm{Velocity}$")
 
-        n = len(ys) - 1
-        for i, (x, y) in enumerate(zip(xs, ys)):
-            color = (1.0 / n * i, 0, 1.0 / n * (n - i))
-
-            if markersize:
-                plt.plot(x, y, marker, color=color, markersize=markersize)
+        for x, y in zip(xs, ys):
+            x = x * u.factor
+            if color_q_point:
+                # TODO: better to implement colors fr. (0, 0, 1) to (1, 0, 0)? remove yellow from palette?
+                plt.plot(x, y, marker, markersize=markersize)
             else:
-                plt.plot(x, y, marker, color=color)
+                plt.plot(x, y, marker, color="#1f77b4", markersize=markersize)
 
         plt.tight_layout()
 
@@ -141,35 +135,31 @@ class VelocityPlotter:
 
     def show(self, units="thz"):
         """
-        will show the plot
+        Show the plot using matplotlib.
         Args:
-            units: units for the plot, accepted units: thz, ev, mev, ha, cm-1, cm^-1
-
-        Returns: plot
+            units: Units for the plot, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
         """
         plt = self.get_plot(units=units)
         plt.show()
 
     def save_plot(self, filename, img_format="pdf", units="thz"):
         """
-        Will save the plot to a file
+        Saves the plot to a file.
         Args:
-            filename: name of the filename
-            img_format: format of the saved plot
-            units: accepted units: thz, ev, mev, ha, cm-1, cm^-1
-
-        Returns:
+            filename: Name of the filename.
+            img_format: Format of the saved plot.
+            units: Accepted units: thz, ev, mev, ha, cm-1, cm^-1.
         """
         plt = self.get_plot(units=units)
         plt.savefig(filename, format=img_format)
         plt.close()
 
 
-
 class VelocityPhononBandStructure(PhononBandStructure):
     """
-    This is the most generic phonon band structure data possible
-    it's defined by a list of qpoints + frequencies for each of them.
+    As the generic PhononBandStructure, this class is defined by
+    a list of qpoints and frequencies for each of them
+    extended by group velocity parameters for each of them.
     Additional information may be given for frequencies at Gamma, where
     non-analytical contribution may be taken into account.
     """
@@ -222,7 +212,7 @@ class VelocityPhononBandStructure(PhononBandStructure):
             coords_are_cartesian=coords_are_cartesian,
             structure=structure,
         )
-        self.velocites = velocities
+        self.velocities = velocities
 
     def as_dict(self):
         """
@@ -244,10 +234,11 @@ class VelocityPhononBandStructure(PhononBandStructure):
         for kpoint_letter, kpoint_object in self.labels_dict.items():
             d["labels_dict"][kpoint_letter] = kpoint_object.as_dict()["fcoords"]
         # split the eigendisplacements to real and imaginary part for serialization
-        d["eigendisplacements"] = dict(
-            real=np.real(self.eigendisplacements).tolist(), imag=np.imag(self.eigendisplacements).tolist()
-        )
-        d["velocities"] = self.velocites.tolist()
+        d["eigendisplacements"] = {
+            "real": np.real(self.eigendisplacements).tolist(),
+            "imag": np.imag(self.eigendisplacements).tolist(),
+        }
+        d["velocities"] = self.velocities.tolist()
         if self.structure:
             d["structure"] = self.structure.as_dict()
 
@@ -259,7 +250,7 @@ class VelocityPhononBandStructure(PhononBandStructure):
         Args:
             d (dict): Dict representation
         Returns:
-            VelocityPhononBandStructure: Phonon band structure with Velocity parameters.
+            A VelocityPhononBandStructure object: Phonon band structure with Velocity parameters.
         """
         lattice_rec = Lattice(d["lattice_rec"]["matrix"])
         eigendisplacements = np.array(d["eigendisplacements"]["real"]) + np.array(d["eigendisplacements"]["imag"]) * 1j
@@ -337,7 +328,7 @@ class VelocityPhononBandStructureSymmLine(VelocityPhononBandStructure, PhononBan
         """
         Args:
             d: Dict representation
-        Returns: VelocityPhononBandStructureSummLine
+        Returns: A VelocityPhononBandStructureSymmLine object.
         """
         lattice_rec = Lattice(d["lattice_rec"]["matrix"])
         eigendisplacements = np.array(d["eigendisplacements"]["real"]) + np.array(d["eigendisplacements"]["imag"]) * 1j
@@ -355,7 +346,7 @@ class VelocityPhononBandStructureSymmLine(VelocityPhononBandStructure, PhononBan
 
 class VelocityPhononBSPlotter(PhononBSPlotter):
     """
-    Class to plot or get data to facilitate the plot of band structure objects.
+    Class to plot or get data to facilitate the plot of VelocityPhononBandStructureSymmLine objects.
     """
 
     def __init__(self, bs):
@@ -373,7 +364,7 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
 
     def bs_plot_data(self):
         """
-        Get the data nicely formatted for a plot
+        Get the data nicely formatted for a plot.
         Returns:
             A dict of the following format:
             ticks: A dict with the 'distances' at which there is a qpoint (the
@@ -389,14 +380,15 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
         ticks = self.get_ticks()
 
         for b in self._bs.branches:
-
             frequency.append([])
             velocity.append([])
+            # TODO compare band.yaml!
+            # TODO do band reorder to match modes
             distance.append([self._bs.distance[j] for j in range(b["start_index"], b["end_index"] + 1)])
 
             for i in range(self._nb_bands):
                 frequency[-1].append([self._bs.bands[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
-                velocity[-1].append([self._bs.velocites[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
+                velocity[-1].append([self._bs.velocities[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
 
         return {
             "ticks": ticks,
@@ -406,30 +398,25 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
             "lattice": self._bs.lattice_rec.as_dict(),
         }
 
-
     def get_plot_velocity_bs(self, ylim=None, only_bands=None):
         """
-        Get a matplotlib object for the velocity bandstructure plot.
+        Get a matplotlib.pyplot object for the velocity bandstructure plot.
         Args:
-            ylim: Specify the y-axis (velocity) limits; by default None let
-                the code choose.
-            only_modes: list to specify which bands to plot, starts at 0
+            ylim: Specify the y-axis (velocity) limits. Defaults to None
+                for automatic determination.
+            only_bands: List to specify which bands to plot, starts at 0.
         """
         plt = pretty_plot(12, 8)
-        if only_bands==None:
-            only_bands=range(self._nb_bands)
+        if only_bands is None:
+            only_bands = range(self._nb_bands)
 
-        # band_linewidth = 1
-        #TODO: change color with line
         data = self.bs_plot_data()
         for d in range(len(data["distances"])):
             for i in only_bands:
-
                 plt.plot(
                     data["distances"][d],
                     [data["velocity"][d][i][j] for j in range(len(data["distances"][d]))],
                     "-",
-                    # linewidth=band_linewidth)
                     marker="o",
                     markersize=1,
                     linewidth=1,
@@ -449,8 +436,9 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
         x_max = data["distances"][-1][-1]
         plt.xlim(0, x_max)
 
-        if ylim is not None:
+        if ylim:
             plt.ylim(ylim)
+        # TODO add automatic ylim determination?
 
         plt.tight_layout()
 
@@ -460,8 +448,9 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
         """
         Show the plot using matplotlib.
         Args:
-            ylim: Specifies the y-axis limits.
-            only_bands: list to specify whic bands to plot
+            ylim: Specify the y-axis (velocity) limits. Defaults to None
+                for automatic determination.
+            only_bands: List to specify which bands to plot, starts at 0.
         """
         plt = self.get_plot_velocity_bs(ylim, only_bands=only_bands)
         plt.show()
@@ -472,8 +461,9 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
         Args:
             filename: Filename to write to.
             img_format: Image format to use. Defaults to EPS.
-            ylim: Specifies the y-axis limits.
-            only_bands: list to specify which bands to plot
+            ylim: Specify the y-axis (velocity) limits. Defaults to None
+                for automatic determination.
+            only_bands: List to specify which bands to plot, starts at 0.
         """
         plt = self.get_plot_velocity_bs(ylim=ylim, only_bands=only_bands)
         plt.savefig(filename, format=img_format)
