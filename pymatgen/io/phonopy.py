@@ -690,7 +690,7 @@ def get_velocity(velocity_path, structure=None, structure_path=None) -> Velocity
         except ValueError:
             raise ValueError("\nPlease provide a structure.\n")
 
-    qpts, multiplicities, frequencies, velocity = ([] for _ in range(4))
+    qpts, multiplicities, frequencies, velocities = ([] for _ in range(4))
 
     for p in velocity_dict["phonon"]:
         q = p["q-position"]
@@ -700,18 +700,19 @@ def get_velocity(velocity_path, structure=None, structure_path=None) -> Velocity
         bands, velocityband = [], []
         for b in p["band"]:
             bands.append(b["frequency"])
-            if "group_velocity" in b:
-                # TODO and else??
+            try:
                 # Adding the vector, choose plotting options later in velocity plotting classes
                 velocityband.append([b["group_velocity"][0], b["group_velocity"][1], b["group_velocity"][2]])
+            except KeyError:
+                raise KeyError("Phonopy output does not contain group velocities!")
         frequencies.append(bands)
-        velocity.append(velocityband)
+        velocities.append(velocityband)
 
     qpts_np = np.array(qpts)
     multiplicities_np = np.array(multiplicities)
     # Transpose to match the convention in PhononBandStructure
     frequencies_np = np.transpose(frequencies)
-    velocity_np = np.moveaxis(velocity, 0, 1)
+    velocity_np = np.moveaxis(velocities, 0, 1)
 
     return Velocity(
         velocities=velocity_np,
@@ -747,36 +748,57 @@ def get_velocity_ph_bs_symm_line_from_dict(
             structure = get_structure_from_dict(velocity_dict)
         except ValueError:
             raise ValueError("\nPlease provide a structure.\n")
-    q_points, frequencies, velocity_params = [], [], []
+    q_points, frequencies, velocities, eigendisplacements = [], [], [], []
     phonopy_labels_dict: dict[str, dict[str, str]] = {}
 
     for p in velocity_dict["phonon"]:
         q = p["q-position"]
         q_points.append(q)
-        bands, velocities_bands = [], []
+        bands, velocityband, eig_q = [], [], []
         for b in p["band"]:
             bands.append(b["frequency"])
-            # TODO Add direction-dependant options?
-            velocities_bands.append(
-                np.sqrt(b["group_velocity"][0] ** 2 + b["group_velocity"][1] ** 2 + b["group_velocity"][2] ** 2)
-            )
+            if "eigenvector" in b:
+                eig_b = []
+                for i, eig_a in enumerate(b["eigenvector"]):
+                    v = np.zeros(3, complex)
+                    for x in range(3):
+                        v[x] = eig_a[x][0] + eig_a[x][1] * 1j
+                    eig_b.append(
+                        eigvec_to_eigdispl(
+                            v,
+                            q,
+                            structure[i].frac_coords,
+                            structure.site_properties["phonopy_masses"][i],
+                        )
+                    )
+                eig_q.append(eig_b)
+            try:
+                # Adding the vector, choose plotting options later in velocity plotting classes
+                velocityband.append([b["group_velocity"][0], b["group_velocity"][1], b["group_velocity"][2]])
+            except KeyError:
+                raise KeyError("Phonopy output does not contain group velocities!")
         frequencies.append(bands)
-        velocity_params.append(velocities_bands)
+        velocities.append(velocityband)
         if "label" in p:
             phonopy_labels_dict[p["label"]] = p["q-position"]
+        if eig_q:
+            eigendisplacements.append(eig_q)
 
     rec_latt = structure.lattice.reciprocal_lattice
     labels_dict = labels_dict or phonopy_labels_dict
+    # Transpose to match the convention in PhononBandStructure
+    if eigendisplacements:
+        eigendisplacements = np.transpose(eigendisplacements, (1, 0, 2, 3))
 
     return VelocityPhononBandStructureSymmLine(
         qpoints=np.array(q_points),
         # Transpose to match the convention in PhononBandStructure
         frequencies=np.transpose(frequencies),
-        velocities=np.transpose(velocity_params),
+        velocities=np.moveaxis(velocities, 0, 1),
         lattice=rec_latt,
         labels_dict=labels_dict,
         structure=structure,
-        eigendisplacements=None,
+        eigendisplacements=eigendisplacements,
     )
 
 

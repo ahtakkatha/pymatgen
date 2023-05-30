@@ -15,6 +15,7 @@ from monty.json import jsanitize
 from pymatgen.electronic_structure.plotter import plot_brillouin_zone
 from pymatgen.phonon.bandstructure import PhononBandStructureSymmLine
 from pymatgen.phonon.gruneisen import GruneisenPhononBandStructureSymmLine
+from pymatgen.phonon.velocity import VelocityPhononBandStructureSymmLine
 from pymatgen.util.plotting import add_fig_kwargs, get_ax_fig_plt, pretty_plot
 
 logger = logging.getLogger(__name__)
@@ -1077,3 +1078,236 @@ class GruneisenPhononBSPlotter(PhononBSPlotter):
                 )
 
         return plt
+
+
+class VelocityPlotter:
+    """
+    Class to plot Velocity object (group velocities on regular grid)
+    with matplotlib.
+    """
+
+    def __init__(self, velocity):
+        """
+        Args:
+            velocity: Velocity Object.
+        """
+        self._velocity = velocity
+
+    def get_plot(self, marker="o", markersize=6, color_q_point=True, units="thz", vel_mode="amount"):
+        """
+        Get a matplotlib plot showing velocity vs. frequency.
+        Color code refers to.
+        Args:
+            marker: Marker for the depiction.
+            markersize: Size of the marker.
+            color_q_point: Whether to color-code the irreducible q-points.
+            units: Unit for the plots, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+
+        Returns: A matplotlib.pyplot plot object.
+        """
+        allowed_modes = {
+            "amount": lambda x: np.sqrt(x[0] ** 2 + x[1] ** 2 + x[2] ** 2),
+            "a": lambda x: x[0],
+            "b": lambda x: x[1],
+            "c": lambda x: x[2],
+        }
+        if vel_mode not in allowed_modes.keys():
+            raise KeyError(f"Parameter vel_mode must be in {list(allowed_modes.keys())}.")
+        u = freq_units(units)
+
+        # Apply vel_mode operation on vector and retranspose for q point-wise plotting
+        xs = self._velocity.frequencies.transpose()
+        ys = np.apply_along_axis(allowed_modes[vel_mode], 2, self._velocity.velocities)
+        ys = ys.transpose()
+        plt = pretty_plot(12, 8)
+
+        plt.xlabel(rf"$\mathrm{{Frequency\ ({u.label})}}$")
+        # TODO save to assume velocity unit fr. phonopy? convert velocities if other frequency unit?
+        ang = "\u212B"
+        plt.ylabel(rf"$\mathrm{{Velocity\ ({ang} THz)}}$")
+
+        for x, y in zip(xs, ys):
+            x = x * u.factor
+            if color_q_point:
+                # TODO: better to implement colors fr. (0, 0, 1) to (1, 0, 0)? remove yellow from palette?
+                plt.plot(x, y, marker, markersize=markersize)
+            else:
+                plt.plot(x, y, marker, color="#1f77b4", markersize=markersize)
+
+        plt.tight_layout()
+
+        return plt
+
+    def show(self, units="thz", vel_mode="amount"):
+        """
+        Show the plot using matplotlib.
+        Args:
+            units: Units for the plot, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+        """
+        plt = self.get_plot(units=units, vel_mode=vel_mode)
+        plt.show()
+
+    def save_plot(self, filename, img_format="pdf", units="thz", vel_mode="amount"):
+        """
+        Saves the plot to a file.
+        Args:
+            filename: Name of the filename.
+            img_format: Format of the saved plot.
+            units: Accepted units: thz, ev, mev, ha, cm-1, cm^-1.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+        """
+        plt = self.get_plot(units=units, vel_mode=vel_mode)
+        plt.savefig(filename, format=img_format)
+        plt.close()
+
+
+class VelocityPhononBSPlotter(PhononBSPlotter):
+    """
+    Class to plot or get data to facilitate the plot of VelocityPhononBandStructureSymmLine objects.
+    """
+
+    def __init__(self, bs):
+        """
+        Args:
+            bs: A VelocityPhononBandStructureSymmLine object.
+        """
+        if not isinstance(bs, VelocityPhononBandStructureSymmLine):
+            raise ValueError(
+                "VelocityPhononBSPlotter only works with VelocityPhononBandStructureSymmLine objects. "
+                "A VelocityPhononBandStructure object (on a uniform grid for instance and "
+                "not along symmetry lines won't work)"
+            )
+        super().__init__(bs)
+
+    def bs_plot_data(self, vel_mode="amount"):
+        """
+        Get the data nicely formatted for a plot.
+        Returns:
+            A dict of the following format:
+            ticks: A dict with the 'distances' at which there is a qpoint (the
+            x axis) and the labels (None if no label)
+            frequencies: A list (one element for each branch) of frequencies for
+            each qpoint: [branch][qpoint][mode]. The data is
+            stored by branch to facilitate the plotting
+            velocity: VelocityPhononBandStructureSymmLine
+            lattice: The reciprocal lattice.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+        """
+        allowed_modes = {
+            "amount": lambda x: np.sqrt(x[0] ** 2 + x[1] ** 2 + x[2] ** 2),
+            "a": lambda x: x[0],
+            "b": lambda x: x[1],
+            "c": lambda x: x[2],
+        }
+        if vel_mode not in allowed_modes.keys():
+            raise KeyError(f"Parameter vel_mode must be in {list(allowed_modes.keys())}.")
+
+        distance, frequency, velocity = ([] for _ in range(3))
+
+        # Apply vel_mode operation on vector and retranspose for q point-wise plotting
+        self._bs.velocities = np.apply_along_axis(allowed_modes[vel_mode], 2, self._bs.velocities)
+
+        ticks = self.get_ticks()
+
+        for b in self._bs.branches:
+            frequency.append([])
+            velocity.append([])
+            distance.append([self._bs.distance[j] for j in range(b["start_index"], b["end_index"] + 1)])
+
+            for i in range(self._nb_bands):
+                frequency[-1].append([self._bs.bands[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
+                velocity[-1].append([self._bs.velocities[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
+
+        return {
+            "ticks": ticks,
+            "distances": distance,
+            "frequency": frequency,
+            "velocity": velocity,
+            "lattice": self._bs.lattice_rec.as_dict(),
+        }
+
+    def get_plot_velocity_bs(self, ylim=None, only_bands=None, vel_mode="amount"):
+        """
+        Get a matplotlib.pyplot object for the velocity bandstructure plot.
+        Args:
+            ylim: Specify the y-axis (velocity) limits. Defaults to None
+                for automatic determination.
+            only_bands: List to specify which bands to plot, starts at 0.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+        """
+        plt = pretty_plot(12, 8)
+        if only_bands is None:
+            only_bands = range(self._nb_bands)
+
+        data = self.bs_plot_data(vel_mode=vel_mode)
+        for d in range(len(data["distances"])):
+            for i in only_bands:
+                plt.plot(
+                    data["distances"][d],
+                    [data["velocity"][d][i][j] for j in range(len(data["distances"][d]))],
+                    "-",
+                    marker="o",
+                    markersize=1,
+                    linewidth=1,
+                    # Color only for debugging
+                    color="k"
+                )
+
+        self._maketicks(plt)
+
+        # plot y=0 line
+        plt.axhline(0, linewidth=1, color="k")
+
+        # Main X and Y Labels
+        plt.xlabel(r"$\mathrm{Wave\ Vector}$", fontsize=30)
+        # TODO save to assume velocity unit fr. phonopy?
+        ang = "\u212B"
+        plt.ylabel(rf"$\mathrm{{Velocity\ ({ang} THz)}}$", fontsize=30)
+
+        # X range (K)
+        # last distance point
+        x_max = data["distances"][-1][-1]
+        plt.xlim(0, x_max)
+
+        if ylim:
+            plt.ylim(ylim)
+
+        plt.tight_layout()
+
+        return plt
+
+    def show_velocity_bs(self, ylim=None, only_bands=None, vel_mode="amount"):
+        """
+        Show the plot using matplotlib.
+        Args:
+            ylim: Specify the y-axis (velocity) limits. Defaults to None
+                for automatic determination.
+            only_bands: List to specify which bands to plot, starts at 0.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+        """
+        plt = self.get_plot_velocity_bs(ylim, only_bands=only_bands, vel_mode=vel_mode)
+        plt.show()
+
+    def save_plot_velocity_bs(self, filename, img_format="eps", ylim=None, only_bands=None, vel_mode="amount"):
+        """
+        Save matplotlib plot to a file.
+        Args:
+            filename: Filename to write to.
+            img_format: Image format to use. Defaults to EPS.
+            ylim: Specify the y-axis (velocity) limits. Defaults to None
+                for automatic determination.
+            only_bands: List to specify which bands to plot, starts at 0.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
+        """
+        plt = self.get_plot_velocity_bs(ylim=ylim, only_bands=only_bands, vel_mode=vel_mode)
+        plt.savefig(filename, format=img_format)
+        plt.close()
