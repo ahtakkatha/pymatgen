@@ -702,11 +702,8 @@ def get_velocity(velocity_path, structure=None, structure_path=None) -> Velocity
             bands.append(b["frequency"])
             if "group_velocity" in b:
                 # TODO and else??
-                # Adding amount of the vector for now
-                # TODO maybe add direction-dependant option?
-                velocityband.append(
-                    np.sqrt(b["group_velocity"][0] ** 2 + b["group_velocity"][1] ** 2 + b["group_velocity"][2] ** 2)
-                )
+                # Adding the vector, choose plotting options later in velocity plotting classes
+                velocityband.append([b["group_velocity"][0], b["group_velocity"][1], b["group_velocity"][2]])
         frequencies.append(bands)
         velocity.append(velocityband)
 
@@ -714,7 +711,7 @@ def get_velocity(velocity_path, structure=None, structure_path=None) -> Velocity
     multiplicities_np = np.array(multiplicities)
     # Transpose to match the convention in PhononBandStructure
     frequencies_np = np.transpose(frequencies)
-    velocity_np = np.transpose(velocity)
+    velocity_np = np.moveaxis(velocity, 0, 1)
 
     return Velocity(
         velocities=velocity_np,

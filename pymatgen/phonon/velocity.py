@@ -99,7 +99,7 @@ class VelocityPlotter:
         """
         self._velocity = velocity
 
-    def get_plot(self, marker="o", markersize=6, color_q_point=True, units="thz"):
+    def get_plot(self, marker="o", markersize=6, color_q_point=True, units="thz", vel_mode="amount"):
         """
         Get a matplotlib plot showing velocity vs. frequency.
         Color code refers to.
@@ -108,14 +108,26 @@ class VelocityPlotter:
             markersize: Size of the marker.
             color_q_point: Whether to color-code the irreducible q-points.
             units: Unit for the plots, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
 
         Returns: A matplotlib.pyplot plot object.
         """
+        allowed_modes = {
+            "amount": lambda x: np.sqrt(x[0] ** 2 + x[1] ** 2 + x[2] ** 2),
+            "a": lambda x: x[0],
+            "b": lambda x: x[1],
+            "c": lambda x: x[2],
+        }
+        if vel_mode not in allowed_modes.keys():
+            raise ValueError(f"\nParameter vel_mode must be in {allowed_modes}.\n")
+
         u = freq_units(units)
 
         # Retranspose for q point-wise plotting
         xs = self._velocity.frequencies.transpose()
-        ys = self._velocity.velocities.transpose()
+        ys = np.apply_along_axis(allowed_modes[vel_mode], 2, self._velocity.velocities)
+        ys = ys.transpose()
         plt = pretty_plot(12, 8)
 
         plt.xlabel(rf"$\mathrm{{Frequency\ ({u.label})}}$")
@@ -133,24 +145,28 @@ class VelocityPlotter:
 
         return plt
 
-    def show(self, units="thz"):
+    def show(self, units="thz", vel_mode="amount"):
         """
         Show the plot using matplotlib.
         Args:
             units: Units for the plot, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
         """
-        plt = self.get_plot(units=units)
+        plt = self.get_plot(units=units, vel_mode=vel_mode)
         plt.show()
 
-    def save_plot(self, filename, img_format="pdf", units="thz"):
+    def save_plot(self, filename, img_format="pdf", units="thz", vel_mode="amount"):
         """
         Saves the plot to a file.
         Args:
             filename: Name of the filename.
             img_format: Format of the saved plot.
             units: Accepted units: thz, ev, mev, ha, cm-1, cm^-1.
+            vel_mode: String argument whether to plot the amount or single components
+                of velocity vector. Accepted: "amount" (default), "a", "b", "c".
         """
-        plt = self.get_plot(units=units)
+        plt = self.get_plot(units=units, vel_mode=vel_mode)
         plt.savefig(filename, format=img_format)
         plt.close()
 
