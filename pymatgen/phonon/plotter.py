@@ -1210,8 +1210,8 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
 
         distance, frequency, velocity = ([] for _ in range(3))
 
-        # Apply vel_mode operation on vector and retranspose for q point-wise plotting
-        self._bs.velocities = np.apply_along_axis(allowed_modes[vel_mode], 2, self._bs.velocities)
+        # Apply vel_mode operation on velocity vector
+        velocities_to_plot = np.apply_along_axis(allowed_modes[vel_mode], 2, self._bs.velocities)
 
         ticks = self.get_ticks()
 
@@ -1222,7 +1222,7 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
 
             for i in range(self._nb_bands):
                 frequency[-1].append([self._bs.bands[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
-                velocity[-1].append([self._bs.velocities[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
+                velocity[-1].append([velocities_to_plot[i][j] for j in range(b["start_index"], b["end_index"] + 1)])
 
         return {
             "ticks": ticks,
@@ -1256,8 +1256,6 @@ class VelocityPhononBSPlotter(PhononBSPlotter):
                     marker="o",
                     markersize=1,
                     linewidth=1,
-                    # Color only for debugging
-                    color="k"
                 )
 
         self._maketicks(plt)
