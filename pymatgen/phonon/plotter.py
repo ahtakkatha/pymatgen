@@ -1121,18 +1121,19 @@ class VelocityPlotter:
         xs = self._velocity.frequencies.transpose()
         ys = np.apply_along_axis(allowed_modes[vel_mode], 2, self._velocity.velocities)
         ys = ys.transpose()
+
         plt = pretty_plot(12, 8)
+        colors = plt.cm.plasma(np.linspace(0, 1, len(xs)))
 
         plt.xlabel(rf"$\mathrm{{Frequency\ ({u.label})}}$")
         # TODO save to assume velocity unit fr. phonopy? convert velocities if other frequency unit?
         ang = "\u212B"
         plt.ylabel(rf"$\mathrm{{Velocity\ ({ang} THz)}}$")
 
-        for x, y in zip(xs, ys):
+        for i, (x, y) in enumerate(zip(xs, ys)):
             x = x * u.factor
             if color_q_point:
-                # TODO: better to implement colors fr. (0, 0, 1) to (1, 0, 0)? remove yellow from palette?
-                plt.plot(x, y, marker, markersize=markersize)
+                plt.plot(x, y, marker, markersize=markersize, color=colors[i])
             else:
                 plt.plot(x, y, marker, color="#1f77b4", markersize=markersize)
 

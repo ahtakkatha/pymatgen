@@ -8,6 +8,7 @@ import numpy as np
 from monty.dev import requires
 from monty.serialization import loadfn
 from scipy.interpolate import InterpolatedUnivariateSpline
+import warnings
 
 from pymatgen.core import Lattice, Structure
 from pymatgen.phonon.bandstructure import (
@@ -667,7 +668,8 @@ def get_gruneisen_ph_bs_symm_line(gruneisen_path, structure=None, structure_path
 
 def get_velocity(velocity_path, structure=None, structure_path=None) -> Velocity:
     """
-    Get velocity object from mesh.yaml file including group velocities, as obtained from phonopy (Frequencies in THz!).
+    Get velocity object from mesh.yaml file including group velocities, as obtained from phonopy.
+    Currently, frequencies have to be in THz, group velocities in A THz.
     The order is structure > structure path > structure from velocities dict.
     Newer versions of phonopy include the structure in the yaml file,
     the structure/structure_path is kept for compatibility.
@@ -789,6 +791,8 @@ def get_velocity_ph_bs_symm_line_from_dict(
     # Transpose to match the convention in PhononBandStructure
     if eigendisplacements:
         eigendisplacements = np.transpose(eigendisplacements, (1, 0, 2, 3))
+    else:
+        warnings.warn("Provide eigenvectors in band.yaml, otherwise bands are only ordered by frequency!")
 
     return VelocityPhononBandStructureSymmLine(
         qpoints=np.array(q_points),
@@ -810,11 +814,16 @@ def get_velocity_ph_bs_symm_line(velocity_path, structure=None, structure_path=N
     calculated according to the formula:
     \\exp(2*pi*i*(frac_coords \\dot q) / sqrt(mass) * v
      and added to the object.
+    Currently, frequencies have to be in THz, group velocities in A THz.
+    Please note that only band.yaml files with the eigenvectors given will produce
+    physically meaningful plots as otherwise the bands will be ordered by frequency,
+    not by similarity of the eigenvectors!
+
     The order is structure > structure path > structure from velocities dict.
     Newer versions of phonopy include the structure in the yaml file,
     the structure/structure_path is kept for compatibility.
     Args:
-        velocity_path: path to the band.yaml file
+        velocity_path: path to the band.yaml file (frequencies in THz!)
         structure: pymatgen Structure object
         structure_path: path to a structure file (e.g., POSCAR)
         labels_dict: dict that links a qpoint in frac coords to a label.
