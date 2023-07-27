@@ -39,9 +39,7 @@ if os.getenv("NWCHEM_BASIS_LIBRARY"):
 
 
 class NwTask(MSONable):
-    """
-    Base task for Nwchem.
-    """
+    """Base task for Nwchem."""
 
     theories = {
         "g3gn": "some description",
@@ -121,10 +119,10 @@ class NwTask(MSONable):
         """
         # Basic checks.
         if theory.lower() not in NwTask.theories:
-            raise NwInputError(f"Invalid theory {theory}")
+            raise NwInputError(f"Invalid {theory=}")
 
         if operation.lower() not in NwTask.operations:
-            raise NwInputError(f"Invalid operation {operation}")
+            raise NwInputError(f"Invalid {operation=}")
         self.charge = charge
         self.spin_multiplicity = spin_multiplicity
         self.title = title if title is not None else f"{theory} {operation}"
@@ -183,9 +181,7 @@ $theory_spec
         return output
 
     def as_dict(self):
-        """
-        Returns: MSONable dict.
-        """
+        """Returns: MSONable dict."""
         return {
             "@module": type(self).__module__,
             "@class": type(self).__name__,
@@ -204,7 +200,7 @@ $theory_spec
     def from_dict(cls, d):
         """
         Args:
-            d (dict): Dict representation
+            d (dict): Dict representation.
 
         Returns:
             NwTask
@@ -272,10 +268,7 @@ $theory_spec
         if spin_multiplicity is not None:
             spin_multiplicity = spin_multiplicity
             if (nelectrons + spin_multiplicity) % 2 != 1:
-                raise ValueError(
-                    f"Charge of {charge} and spin multiplicity of {spin_multiplicity} is"
-                    " not possible for this molecule"
-                )
+                raise ValueError(f"{charge=} and {spin_multiplicity=} is not possible for this molecule")
         elif charge == mol.charge:
             spin_multiplicity = mol.spin_multiplicity
         else:
@@ -358,7 +351,7 @@ class NwInput(MSONable):
             symmetry_options: Addition list of option to be supplied to the
                 symmetry. E.g. ["c1"] to turn off the symmetry
             memory_options: Memory controlling options. str.
-                E.g "total 1000 mb stack 400 mb"
+                E.g "total 1000 mb stack 400 mb".
         """
         self._mol = mol
         self.directives = directives if directives is not None else []
@@ -369,9 +362,7 @@ class NwInput(MSONable):
 
     @property
     def molecule(self):
-        """
-        Returns molecule associated with this GaussianInput.
-        """
+        """Returns molecule associated with this GaussianInput."""
         return self._mol
 
     def __str__(self):
@@ -394,15 +385,13 @@ class NwInput(MSONable):
     def write_file(self, filename):
         """
         Args:
-            filename (str): Filename
+            filename (str): Filename.
         """
         with zopen(filename, "w") as f:
             f.write(str(self))
 
     def as_dict(self):
-        """
-        Returns: MSONable dict
-        """
+        """Returns: MSONable dict."""
         return {
             "mol": self._mol.as_dict(),
             "tasks": [t.as_dict() for t in self.tasks],
@@ -416,7 +405,7 @@ class NwInput(MSONable):
     def from_dict(cls, d):
         """
         Args:
-            d (dict): Dict representation
+            d (dict): Dict representation.
 
         Returns:
             NwInput
@@ -431,7 +420,12 @@ class NwInput(MSONable):
         )
 
     @classmethod
-    def from_string(cls, string_input):
+    @np.deprecate(message="Use from_str instead")
+    def from_string(cls, *args, **kwargs):
+        return cls.from_str(*args, **kwargs)
+
+    @classmethod
+    def from_str(cls, string_input):
         """
         Read an NwInput from a string. Currently tested to work with
         files generated from this class itself.
@@ -444,15 +438,10 @@ class NwInput(MSONable):
         """
         directives = []
         tasks = []
-        charge = None
-        spin_multiplicity = None
-        title = None
-        basis_set = None
+        charge = spin_multiplicity = title = basis_set = None
         basis_set_option = None
         theory_directives = {}
-        geom_options = None
-        symmetry_options = None
-        memory_options = None
+        geom_options = symmetry_options = memory_options = None
         lines = string_input.strip().split("\n")
         while len(lines) > 0:
             line = lines.pop(0).strip()
@@ -542,13 +531,11 @@ class NwInput(MSONable):
             NwInput object
         """
         with zopen(filename) as f:
-            return cls.from_string(f.read())
+            return cls.from_str(f.read())
 
 
 class NwInputError(Exception):
-    """
-    Error class for NwInput.
-    """
+    """Error class for NwInput."""
 
 
 class NwOutput:
@@ -703,11 +690,11 @@ class NwOutput:
         energy_patt = re.compile(r"Total \w+ energy\s+=\s+([.\-\d]+)")
         energy_gas_patt = re.compile(r"gas phase energy\s+=\s+([.\-\d]+)")
         energy_sol_patt = re.compile(r"sol phase energy\s+=\s+([.\-\d]+)")
-        coord_patt = re.compile(r"\d+\s+(\w+)\s+[.\-\d]+\s+([.\-\d]+)\s+" r"([.\-\d]+)\s+([.\-\d]+)")
-        lat_vector_patt = re.compile(r"a[123]=<\s+([.\-\d]+)\s+" r"([.\-\d]+)\s+([.\-\d]+)\s+>")
-        corrections_patt = re.compile(r"([\w\-]+ correction to \w+)\s+=" r"\s+([.\-\d]+)")
+        coord_patt = re.compile(r"\d+\s+(\w+)\s+[.\-\d]+\s+([.\-\d]+)\s+([.\-\d]+)\s+([.\-\d]+)")
+        lat_vector_patt = re.compile(r"a[123]=<\s+([.\-\d]+)\s+([.\-\d]+)\s+([.\-\d]+)\s+>")
+        corrections_patt = re.compile(r"([\w\-]+ correction to \w+)\s+=\s+([.\-\d]+)")
         preamble_patt = re.compile(
-            r"(No. of atoms|No. of electrons" r"|SCF calculation type|Charge|Spin " r"multiplicity)\s*:\s*(\S+)"
+            r"(No. of atoms|No. of electrons|SCF calculation type|Charge|Spin multiplicity)\s*:\s*(\S+)"
         )
         force_patt = re.compile(r"\s+(\d+)\s+(\w+)" + 6 * r"\s+([0-9\.\-]+)")
 
@@ -728,16 +715,14 @@ class NwOutput:
 
         parse_hess = False
         parse_proj_hess = False
-        hessian = None
-        projected_hessian = None
+        hessian = projected_hessian = None
         parse_force = False
         all_forces = []
         forces = []
 
         data = {}
         energies = []
-        frequencies = None
-        normal_frequencies = None
+        frequencies = normal_frequencies = None
         corrections = {}
         molecules = []
         structures = []

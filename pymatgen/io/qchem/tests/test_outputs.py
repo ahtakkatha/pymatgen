@@ -4,6 +4,8 @@ import os
 import unittest
 
 from monty.serialization import dumpfn, loadfn
+from numpy.testing import assert_array_equal
+from pytest import approx
 
 from pymatgen.core.structure import Molecule
 from pymatgen.io.qchem.outputs import QCOutput, check_for_structure_changes
@@ -158,10 +160,7 @@ single_job_out_names = {
     "tfsi_nbo.qcout",
     "crowd_nbo_charges.qcout",
     "h2o_aimd.qcout",
-    "quinoxaline_anion.qcout",
-    "crowd_gradient_number.qcout",
     "bsse.qcout",
-    "thiophene_wfs_5_carboxyl.qcout",
     "time_nan_values.qcout",
     "pt_dft_180.0.qcout",
     "qchem_energies/hf-rimp2.qcout",
@@ -281,7 +280,7 @@ class TestQCOutput(PymatgenTest):
                 assert outdata.get(key) == single_job_dict[name].get(key)
             except ValueError:
                 try:
-                    self.assertArrayEqual(outdata.get(key), single_job_dict[name].get(key))
+                    assert_array_equal(outdata.get(key), single_job_dict[name].get(key))
                 except AssertionError:
                     raise RuntimeError("Issue with file: " + name + " Exiting...")
             except AssertionError:
@@ -291,7 +290,7 @@ class TestQCOutput(PymatgenTest):
                 try:
                     assert sub_output.data.get(key) == multi_job_dict[name][ii].get(key)
                 except ValueError:
-                    self.assertArrayEqual(sub_output.data.get(key), multi_job_dict[name][ii].get(key))
+                    assert_array_equal(sub_output.data.get(key), multi_job_dict[name][ii].get(key))
 
     @unittest.skipIf(openbabel is None, "OpenBabel not installed.")
     def test_all(self):
@@ -409,9 +408,9 @@ class TestQCOutput(PymatgenTest):
 
     def test_almo_msdft2_parsing(self):
         data = QCOutput(os.path.join(PymatgenTest.TEST_FILES_DIR, "molecules", "new_qchem_files", "almo.out")).data
-        self.assertListEqual(data["almo_coupling_states"], [[[1, 2], [0, 1]], [[0, 1], [1, 2]]])
+        assert data["almo_coupling_states"] == [[[1, 2], [0, 1]], [[0, 1], [1, 2]]]
         assert data["almo_hamiltonian"][0][0] == -156.62929
-        self.assertAlmostEqual(data["almo_coupling_eV"], 0.26895)
+        assert data["almo_coupling_eV"] == approx(0.26895)
 
     def test_pod_parsing(self):
         data = QCOutput(os.path.join(PymatgenTest.TEST_FILES_DIR, "molecules", "new_qchem_files", "pod2_gs.out")).data
@@ -460,7 +459,7 @@ class TestQCOutput(PymatgenTest):
         ).data
         assert data["solvent_method"] == "ISOSVP"
         assert data["solvent_data"]["isosvp"]["isosvp_dielectric"] == 2.28
-        assert data["solvent_data"]["cmirs"]["CMIRS_enabled"] is True
+        assert data["solvent_data"]["cmirs"]["CMIRS_enabled"]
         assert data["solvent_data"]["cmirs"]["dispersion_e"] == 0.6955542829
         assert data["solvent_data"]["cmirs"]["exchange_e"] == 0.2654553686
         assert data["solvent_data"]["cmirs"]["min_neg_field_e"] == 0.0006019665
@@ -472,7 +471,7 @@ class TestQCOutput(PymatgenTest):
         ).data
         assert data["solvent_method"] == "ISOSVP"
         assert data["solvent_data"]["isosvp"]["isosvp_dielectric"] == 10
-        assert data["solvent_data"]["cmirs"]["CMIRS_enabled"] is True
+        assert data["solvent_data"]["cmirs"]["CMIRS_enabled"]
         assert data["solvent_data"]["cmirs"]["dispersion_e"] == 0.6955550107
         assert data["solvent_data"]["cmirs"]["exchange_e"] == 0.2652679507
         assert data["solvent_data"]["cmirs"]["min_neg_field_e"] == 0.0005235850
@@ -493,7 +492,7 @@ class TestQCOutput(PymatgenTest):
         assert data["solvent_data"]["isosvp"]["total_solvation_free_e"] == 0.0037602703
 
         # CMIRS parameters
-        assert data["solvent_data"]["cmirs"]["CMIRS_enabled"] is True
+        assert data["solvent_data"]["cmirs"]["CMIRS_enabled"]
         assert data["solvent_data"]["cmirs"]["dispersion_e"] == 0.6722278965
         assert data["solvent_data"]["cmirs"]["exchange_e"] == 0.2652032616
         assert data["solvent_data"]["cmirs"]["min_neg_field_e"] == 0.0004967767

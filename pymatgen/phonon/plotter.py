@@ -1,6 +1,4 @@
-"""
-This module implements plotter for DOS and band structure.
-"""
+"""This module implements plotter for DOS and band structure."""
 
 from __future__ import annotations
 
@@ -27,7 +25,7 @@ def freq_units(units):
     """
 
     Args:
-        units: str, accepted values: thz, ev, mev, ha, cm-1, cm^-1
+        units: str, accepted values: thz, ev, mev, ha, cm-1, cm^-1.
 
     Returns:
         Returns conversion factor from THz to the required units and the label in the form of a namedtuple
@@ -58,20 +56,17 @@ def freq_units(units):
 
 class PhononDosPlotter:
     """
-    Class for plotting phonon DOSs. Note that the interface is extremely flexible
-    given that there are many different ways in which people want to view
-    DOS. The typical usage is::
+    Class for plotting phonon DOSs. The interface is extremely flexible given there are many
+    different ways in which people want to view DOS.
+    Typical usage is:
+        # Initializes plotter with some optional args. Defaults are usually fine
+        plotter = PhononDosPlotter().
 
-        # Initializes plotter with some optional args. Defaults are usually
-        # fine,
-        plotter = PhononDosPlotter()
-
-        # Adds a DOS with a label.
+        # Add DOS with a label
         plotter.add_dos("Total DOS", dos)
 
-        # Alternatively, you can add a dict of DOSs. This is the typical
-        # form returned by CompletePhononDos.get_element_dos().
-
+        # Alternatively, you can add a dict of DOSes. This is the typical form
+        # returned by CompletePhononDos.get_element_dos().
     """
 
     def __init__(self, stack=False, sigma=None):
@@ -79,8 +74,7 @@ class PhononDosPlotter:
         Args:
             stack: Whether to plot the DOS as a stacked area graph
             sigma: A float specifying a standard deviation for Gaussian smearing
-            the DOS for nicer looking plots. Defaults to None for no
-            smearing.
+                the DOS for nicer looking plots. Defaults to None for no smearing.
         """
         self.stack = stack
         self.sigma = sigma
@@ -234,9 +228,7 @@ class PhononDosPlotter:
 
 
 class PhononBSPlotter:
-    """
-    Class to plot or get data to facilitate the plot of band structure objects.
-    """
+    """Class to plot or get data to facilitate the plot of band structure objects."""
 
     def __init__(self, bs):
         """
@@ -253,9 +245,7 @@ class PhononBSPlotter:
         self._nb_bands = self._bs.nb_bands
 
     def _maketicks(self, plt):
-        """
-        utility private method to add ticks to a band structure
-        """
+        """Utility private method to add ticks to a band structure."""
         ticks = self.get_ticks()
         # Sanitize only plot the uniq values
         uniq_d = []
@@ -266,13 +256,12 @@ class PhononBSPlotter:
                 uniq_d.append(tt[0])
                 uniq_l.append(tt[1])
                 logger.debug(f"Adding label {tt[0]} at {tt[1]}")
+            elif tt[1] == temp_ticks[i - 1][1]:
+                logger.debug(f"Skipping label {tt[1]}")
             else:
-                if tt[1] == temp_ticks[i - 1][1]:
-                    logger.debug(f"Skipping label {tt[1]}")
-                else:
-                    logger.debug(f"Adding label {tt[0]} at {tt[1]}")
-                    uniq_d.append(tt[0])
-                    uniq_l.append(tt[1])
+                logger.debug(f"Adding label {tt[0]} at {tt[1]}")
+                uniq_d.append(tt[0])
+                uniq_l.append(tt[1])
 
         logger.debug(f"Unique labels are {list(zip(uniq_d, uniq_l))}")
         plt.gca().set_xticks(uniq_d)
@@ -294,7 +283,7 @@ class PhononBSPlotter:
 
     def bs_plot_data(self):
         """
-        Get the data nicely formatted for a plot
+        Get the data nicely formatted for a plot.
 
         Returns:
             A dict of the following format:
@@ -374,7 +363,7 @@ class PhononBSPlotter:
     def _get_weight(self, vec: np.ndarray, indices: list[list[int]]) -> np.ndarray:
         """
         compute the weight for each combination of sites according to the
-        eigenvector
+        eigenvector.
         """
         num_atom = int(self._nb_bands / 3)
         new_vec = np.zeros(num_atom)
@@ -395,17 +384,14 @@ class PhononBSPlotter:
 
     @staticmethod
     def _make_color(colors: list[int]) -> list[int]:
-        """
-        convert the eigendisplacements to rgb colors
-
-        """
+        """Convert the eigendisplacements to rgb colors."""
         # if there are two groups, use red and blue
         if len(colors) == 2:
             return [colors[0], 0, colors[1]]
-        elif len(colors) == 3:
+        if len(colors) == 3:
             return colors
         # if there are four groups, use cyan, magenta, yellow and black
-        elif len(colors) == 4:
+        if len(colors) == 4:
             r = (1 - colors[0]) * (1 - colors[3])
             g = (1 - colors[1]) * (1 - colors[3])
             b = (1 - colors[2]) * (1 - colors[3])
@@ -431,6 +417,9 @@ class PhononBSPlotter:
             ylim: Specify the y-axis (frequency) limits; by default None let
                 the code choose.
             units: units for the frequencies. Accepted values thz, ev, mev, ha, cm-1, cm^-1.
+                Defaults to "thz".
+            rgb_labels: a list of rgb colors for the labels; if not specified,
+                the colors will be automatically generated.
         """
         from matplotlib.collections import LineCollection
 
@@ -495,11 +484,10 @@ class PhononBSPlotter:
         labels: list[str]
         if rgb_labels is not None:
             labels = rgb_labels  # type: ignore[assignment]
+        elif site_comb == "element":
+            labels = [e.symbol for e in self._bs.structure.composition.elements]
         else:
-            if site_comb == "element":
-                labels = [e.symbol for e in self._bs.structure.composition.elements]
-            else:
-                labels = [f"{i}" for i in range(len(site_comb))]
+            labels = [f"{i}" for i in range(len(site_comb))]
         if len(indices) == 2:
             BSDOSPlotter._rb_line(ax, labels[0], labels[1], "best")
         elif len(indices) == 3:
@@ -546,9 +534,16 @@ class PhononBSPlotter:
         Show the projected plot using matplotlib.
 
         Args:
+            site_comb: A list of list of indices of sites to combine. For example,
+                [[0, 1], [2, 3]] will combine the projections of sites 0 and 1,
+                and sites 2 and 3. Defaults to "element", which will combine
+                sites by element.
             ylim: Specify the y-axis (frequency) limits; by default None let
                 the code choose.
             units: units for the frequencies. Accepted values thz, ev, mev, ha, cm-1, cm^-1.
+                Defaults to "thz".
+            rgb_labels: A list of labels for the rgb triangle. Defaults to None,
+                which will use the element symbols.
         """
         self.get_proj_plot(site_comb=site_comb, ylim=ylim, units=units, rgb_labels=rgb_labels)
         plt.show()
@@ -583,11 +578,10 @@ class PhononBSPlotter:
                     tick_labels.pop()
                     tick_distance.pop()
                     tick_labels.append(label0 + "$\\mid$" + label1)
+                elif c.label.startswith("\\") or c.label.find("_") != -1:
+                    tick_labels.append("$" + c.label + "$")
                 else:
-                    if c.label.startswith("\\") or c.label.find("_") != -1:
-                        tick_labels.append("$" + c.label + "$")
-                    else:
-                        tick_labels.append(c.label)
+                    tick_labels.append(c.label)
                 previous_label = c.label
                 previous_branch = this_branch
         return {"distance": tick_distance, "label": tick_labels}
@@ -597,11 +591,13 @@ class PhononBSPlotter:
         plot two band structure for comparison. One is in red the other in blue.
         The two band structures need to be defined on the same symmetry lines!
         and the distance between symmetry lines is the one of the band structure
-        used to build the PhononBSPlotter
+        used to build the PhononBSPlotter.
 
         Args:
             other_plotter: another PhononBSPlotter object defined along the same symmetry lines
-            units:
+            units: units for the frequencies. Accepted values thz, ev, mev, ha, cm-1, cm^-1.
+                Defaults to 'thz'.
+
         Returns:
             a matplotlib object with both band structures
         """
@@ -627,9 +623,7 @@ class PhononBSPlotter:
         return plt
 
     def plot_brillouin(self):
-        """
-        plot the Brillouin zone
-        """
+        """Plot the Brillouin zone."""
         # get labels and lines
         labels = {}
         for q in self._bs.qpoints:
@@ -652,7 +646,7 @@ class ThermoPlotter:
     """
     Plotter for thermodynamic properties obtained from phonon DOS.
     If the structure corresponding to the DOS, it will be used to extract the formula unit and provide
-    the plots in units of mol instead of mole-cell
+    the plots in units of mol instead of mole-cell.
     """
 
     def __init__(self, dos, structure=None):
@@ -724,9 +718,7 @@ class ThermoPlotter:
 
         ylabel = "$C_v$ (J/K/mol)" if self.structure else "$C_v$ (J/K/mol-c)"
 
-        fig = self._plot_thermo(self.dos.cv, temperatures, ylabel=ylabel, ylim=ylim, **kwargs)
-
-        return fig
+        return self._plot_thermo(self.dos.cv, temperatures, ylabel=ylabel, ylim=ylim, **kwargs)
 
     @add_fig_kwargs
     def plot_entropy(self, tmin, tmax, ntemp, ylim=None, **kwargs):
@@ -747,9 +739,7 @@ class ThermoPlotter:
 
         ylabel = "$S$ (J/K/mol)" if self.structure else "$S$ (J/K/mol-c)"
 
-        fig = self._plot_thermo(self.dos.entropy, temperatures, ylabel=ylabel, ylim=ylim, **kwargs)
-
-        return fig
+        return self._plot_thermo(self.dos.entropy, temperatures, ylabel=ylabel, ylim=ylim, **kwargs)
 
     @add_fig_kwargs
     def plot_internal_energy(self, tmin, tmax, ntemp, ylim=None, **kwargs):
@@ -770,9 +760,9 @@ class ThermoPlotter:
 
         ylabel = "$\\Delta E$ (kJ/mol)" if self.structure else "$\\Delta E$ (kJ/mol-c)"
 
-        fig = self._plot_thermo(self.dos.internal_energy, temperatures, ylabel=ylabel, ylim=ylim, factor=1e-3, **kwargs)
-
-        return fig
+        return self._plot_thermo(
+            self.dos.internal_energy, temperatures, ylabel=ylabel, ylim=ylim, factor=1e-3, **kwargs
+        )
 
     @add_fig_kwargs
     def plot_helmholtz_free_energy(self, tmin, tmax, ntemp, ylim=None, **kwargs):
@@ -793,11 +783,9 @@ class ThermoPlotter:
 
         ylabel = "$\\Delta F$ (kJ/mol)" if self.structure else "$\\Delta F$ (kJ/mol-c)"
 
-        fig = self._plot_thermo(
+        return self._plot_thermo(
             self.dos.helmholtz_free_energy, temperatures, ylabel=ylabel, ylim=ylim, factor=1e-3, **kwargs
         )
-
-        return fig
 
     @add_fig_kwargs
     def plot_thermodynamic_properties(self, tmin, tmax, ntemp, ylim=None, **kwargs):
@@ -854,15 +842,13 @@ class ThermoPlotter:
 
 
 class GruneisenPlotter:
-    """
-    Class to plot Gruneisenparameter Object
-    """
+    """Class to plot Gruneisenparameter Object."""
 
     def __init__(self, gruneisen):
         """
         Class to plot information from Gruneisenparameter Object
         Args:
-            gruneisen: GruneisenParameter Object
+            gruneisen: GruneisenParameter Object.
         """
         self._gruneisen = gruneisen
 
@@ -872,7 +858,7 @@ class GruneisenPlotter:
         Args:
             marker: marker for the depiction
             markersize: size of the marker
-            units: unit for the plots, accepted units: thz, ev, mev, ha, cm-1, cm^-1
+            units: unit for the plots, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
 
         Returns: plot
         """
@@ -903,7 +889,7 @@ class GruneisenPlotter:
         """
         will show the plot
         Args:
-            units: units for the plot, accepted units: thz, ev, mev, ha, cm-1, cm^-1
+            units: units for the plot, accepted units: thz, ev, mev, ha, cm-1, cm^-1.
 
         Returns: plot
         """
@@ -916,9 +902,7 @@ class GruneisenPlotter:
         Args:
             filename: name of the filename
             img_format: format of the saved plot
-            units: accepted units: thz, ev, mev, ha, cm-1, cm^-1
-
-        Returns:
+            units: accepted units: thz, ev, mev, ha, cm-1, cm^-1.
         """
         plt = self.get_plot(units=units)
         plt.savefig(filename, format=img_format)
@@ -926,9 +910,7 @@ class GruneisenPlotter:
 
 
 class GruneisenPhononBSPlotter(PhononBSPlotter):
-    """
-    Class to plot or get data to facilitate the plot of band structure objects.
-    """
+    """Class to plot or get data to facilitate the plot of band structure objects."""
 
     def __init__(self, bs):
         """
@@ -945,7 +927,7 @@ class GruneisenPhononBSPlotter(PhononBSPlotter):
 
     def bs_plot_data(self):
         """
-        Get the data nicely formatted for a plot
+        Get the data nicely formatted for a plot.
 
         Returns:
             A dict of the following format:
@@ -1047,15 +1029,16 @@ class GruneisenPhononBSPlotter(PhononBSPlotter):
         plt.savefig(filename, format=img_format)
         plt.close()
 
-    def plot_compare_gs(self, other_plotter):
+    def plot_compare_gs(self, other_plotter: GruneisenPhononBSPlotter) -> plt:
         """
         plot two band structure for comparison. One is in red the other in blue.
         The two band structures need to be defined on the same symmetry lines!
         and the distance between symmetry lines is
-        the one of the band structure used to build the PhononBSPlotter
+        the one of the band structure used to build the PhononBSPlotter.
 
         Args:
-            another GruneisenPhononBSPlotter object defined along the same symmetry lines
+            other_plotter (GruneisenPhononBSPlotter): another phonon DOS plotter defined along
+                the same symmetry lines.
 
         Returns:
             a matplotlib object with both band structures

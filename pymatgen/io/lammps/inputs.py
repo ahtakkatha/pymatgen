@@ -2,7 +2,7 @@
 This module implements methods for reading/manupilating/writing LAMMPS input files.
 It does not implement methods for automatically creating inputs based on a structure
 and computation type. For this, see the InputSet and InputGenerator in sets.py, or
-https://github.com/Matgenix/atomate2-lammps
+https://github.com/Matgenix/atomate2-lammps.
 """
 
 from __future__ import annotations
@@ -168,7 +168,7 @@ class LammpsInputFile(InputFile):
             how = list(range(N))
         elif isinstance(how, int):
             how = [how]
-        elif not (isinstance(how, list) and all([isinstance(h, int) for h in how])):
+        elif not (isinstance(how, list) and all(isinstance(h, int) for h in how)):
             raise ValueError("""The argument 'how' should be a 'first', 'all', an integer or a list of integers.""")
 
         # Look for occurrences in the relevant stages
@@ -183,7 +183,7 @@ class LammpsInputFile(InputFile):
 
     def add_stage(
         self,
-        stage: dict = None,
+        stage: dict | None = None,
         commands: str | list[str] | dict[str, str | float] | None = None,
         stage_name: str | None = None,
         after_stage: str | int | None = None,
@@ -306,9 +306,8 @@ class LammpsInputFile(InputFile):
         if stage_name in self.stages_names:
             if new_name in self.stages_names:
                 raise ValueError("The provided stage name is already present in LammpsInputFile.stages.")
-            else:
-                idx = self.stages_names.index(stage_name)
-                self.stages[idx]["stage_name"] = new_name
+            idx = self.stages_names.index(stage_name)
+            self.stages[idx]["stage_name"] = new_name
         else:
             raise LookupError("The given stage name is not present in this LammpsInputFile.")
 
@@ -321,7 +320,7 @@ class LammpsInputFile(InputFile):
         Args:
              stage_names (list): list of strings giving the names of the stages to be merged.
         """
-        if not all([stage in self.stages_names for stage in stage_names]):
+        if not all(stage in self.stages_names for stage in stage_names):
             raise ValueError("At least one of the stages to be merged is not in the LammpsInputFile.")
 
         indices_stages_to_merge = [self.stages_names.index(stage) for stage in stage_names]
@@ -523,7 +522,12 @@ class LammpsInputFile(InputFile):
             f.write(self.get_string(ignore_comments=ignore_comments, keep_stages=keep_stages))
 
     @classmethod
-    def from_string(cls, contents: str, ignore_comments: bool = False, keep_stages: bool = False) -> LammpsInputFile:
+    @np.deprecate(message="Use from_str instead")
+    def from_string(cls, *args, **kwargs):
+        return cls.from_str(*args, **kwargs)
+
+    @classmethod
+    def from_str(cls, contents: str, ignore_comments: bool = False, keep_stages: bool = False) -> LammpsInputFile:
         """
         Helper method to parse string representation of LammpsInputFile.
         If you created the input file by hand, there is no guarantee that the representation
@@ -567,7 +571,7 @@ class LammpsInputFile(InputFile):
         for block in blocks:
             keep_block = True
             # Block of comment(s)
-            if all([line[0] == "#" for line in block]):
+            if all(line[0] == "#" for line in block):
                 if ignore_comments:
                     keep_block = False
                 else:
@@ -618,7 +622,7 @@ class LammpsInputFile(InputFile):
         """
         filename = path if isinstance(path, Path) else Path(path)
         with zopen(filename, "rt") as f:
-            return cls.from_string(f.read(), ignore_comments=ignore_comments, keep_stages=keep_stages)
+            return cls.from_str(f.read(), ignore_comments=ignore_comments, keep_stages=keep_stages)
 
     def __repr__(self):
         return self.get_string()
@@ -663,15 +667,15 @@ class LammpsInputFile(InputFile):
     def _check_stage_format(stage: dict):
         if list(stage.keys()) != ["stage_name", "commands"]:
             raise KeyError(
-                "The provided stage does not have the correct keys. It should be 'stage_name' and " "'commands'."
+                "The provided stage does not have the correct keys. It should be 'stage_name' and 'commands'."
             )
         if not isinstance(stage["stage_name"], str):
             raise TypeError("The value of 'stage_name' should be a string.")
         if not isinstance(stage["commands"], list):
             raise TypeError("The provided commands should be a list.")
         if len(stage["commands"]) >= 1 and (
-            not all([len(cmdargs) == 2 for cmdargs in stage["commands"]])
-            or not all([isinstance(cmd, str) and isinstance(arg, str) for (cmd, arg) in stage["commands"]])
+            not all(len(cmdargs) == 2 for cmdargs in stage["commands"])
+            or not all(isinstance(cmd, str) and isinstance(arg, str) for (cmd, arg) in stage["commands"])
         ):
             raise ValueError("The provided commands should be a list of 2-strings tuples.")
 
@@ -773,7 +777,7 @@ class LammpsInputFile(InputFile):
         Returns:
             List of strings
         """
-        if len(string_list) == 0 or all([s == "" for s in string_list]):
+        if len(string_list) == 0 or all(s == "" for s in string_list):
             raise ValueError("The list of strings should contain some non-empty strings.")
 
         # Remove the first comment line possibly added by previous input creations
@@ -847,7 +851,6 @@ class LammpsRun(MSONable):
     force field and a few more settings. Experienced LAMMPS users should
     consider using write_lammps_inputs method with more sophisticated
     templates.
-
     """
 
     template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
