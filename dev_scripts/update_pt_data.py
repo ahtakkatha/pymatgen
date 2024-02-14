@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 Developer script to convert yaml periodic table to json format.
 Created on Nov 15, 2011.
@@ -77,9 +75,9 @@ def parse_ionic_radii():
 
         ionic_radii = {}
         for j in range(3, len(tokens)):
-            m = re.match(r"^\s*([0-9\.]+)", tokens[j])
-            if m:
-                ionic_radii[int(header[j])] = float(m.group(1))
+            match = re.match(r"^\s*([0-9\.]+)", tokens[j])
+            if match:
+                ionic_radii[int(header[j])] = float(match.group(1))
 
         if el in data:
             data[el]["Ionic_radii" + suffix] = ionic_radii
@@ -217,7 +215,7 @@ def gen_iupac_ordering():
         ([17], range(6, 1, -1)),
     ]  # At -> F
 
-    order = sum((list(product(x, y)) for x, y in order), [])
+    order = sum((list(product(x, y)) for x, y in order), [])  # noqa: RUF017
     iupac_ordering_dict = dict(zip([Element.from_row_and_group(row, group) for group, row in order], range(len(order))))
 
     # first clean periodic table of any IUPAC ordering

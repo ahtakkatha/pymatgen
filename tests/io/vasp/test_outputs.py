@@ -241,7 +241,7 @@ class TestVasprun(PymatgenTest):
         assert total_sc_steps == 308, "Incorrect number of energies read from vasprun.xml"
 
         assert vasp_run.atomic_symbols == ["Li"] + 4 * ["Fe"] + 4 * ["P"] + 16 * ["O"]
-        assert vasp_run.final_structure.composition.reduced_formula == "LiFe4(PO4)4"
+        assert vasp_run.final_structure.reduced_formula == "LiFe4(PO4)4"
         assert vasp_run.incar is not None, "Incar cannot be read"
         assert vasp_run.kpoints is not None, "Kpoints cannot be read"
         assert vasp_run.eigenvalues is not None, "Eigenvalues cannot be read"
@@ -704,6 +704,25 @@ class TestVasprun(PymatgenTest):
         assert props2[0] == approx(np.min(props[1]) - np.max(props[2]), abs=1e-4)
         assert props[3][0]
         assert props[3][1]
+
+    def test_parse_potcar_cwd_relative(self):
+        # Test to ensure that common use cases of vasprun parsing work
+        # in the current working directory using relative paths,
+        # either when leading ./ is specified or not for vasprun.xml
+        # See gh-3586
+        copyfile(f"{TEST_FILES_DIR}/vasprun.xml.Al", "vasprun.xml")
+
+        potcar_path = f"{TEST_FILES_DIR}/fake_potcars/POTPAW_PBE_54/POTCAR.Al.gz"
+        copyfile(potcar_path, "POTCAR.gz")
+
+        potcar = Potcar.from_file(potcar_path)
+        for leading_path in ("", "./"):
+            vrun = Vasprun(os.path.join(leading_path, "vasprun.xml"), parse_potcar_file=True)
+            # Note that the TITEL is not updated in Vasprun.potcar_spec
+            # Since the fake POTCARs modify the TITEL (to indicate fakeness), can't compare
+            for ipot in range(len(potcar)):
+                assert vrun.potcar_spec[ipot]["hash"] == potcar[ipot].md5_header_hash
+                assert vrun.potcar_spec[ipot]["summary_stats"] == potcar[ipot]._summary_stats
 
 
 class TestOutcar(PymatgenTest):

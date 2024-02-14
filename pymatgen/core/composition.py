@@ -365,8 +365,8 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable, S
         all_int = all(abs(x - round(x)) < Composition.amount_tolerance for x in self.values())
         if not all_int:
             return self.formula.replace(" ", ""), 1
-        d = {key: int(round(val)) for key, val in self.get_el_amt_dict().items()}
-        formula, factor = reduce_formula(d, iupac_ordering=iupac_ordering)
+        el_amt_dict = {key: int(round(val)) for key, val in self.get_el_amt_dict().items()}
+        formula, factor = reduce_formula(el_amt_dict, iupac_ordering=iupac_ordering)
 
         if formula in Composition.special_formulas:
             formula = Composition.special_formulas[formula]
@@ -544,6 +544,7 @@ class Composition(collections.abc.Hashable, collections.abc.Mapping, MSONable, S
             raise ValueError(f"Invalid {formula=}")
         # for Metallofullerene like "Y3N@C80"
         formula = formula.replace("@", "")
+        # square brackets are used in formulas to denote coordination complexes (gh-3583)
         formula = formula.replace("[", "(")
         formula = formula.replace("]", ")")
 
@@ -1295,9 +1296,8 @@ class ChemicalPotential(dict, MSONable):
             composition (Composition): input composition
             strict (bool): Whether all potentials must be specified
         """
-        if strict and set(composition) > set(self):
-            s = set(composition) - set(self)
-            raise ValueError(f"Potentials not specified for {s}")
+        if strict and (missing := set(composition) - set(self)):
+            raise ValueError(f"Potentials not specified for {missing}")
         return sum(self.get(key, 0) * val for key, val in composition.items())
 
     def __repr__(self) -> str:
