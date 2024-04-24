@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from monty.json import MSONable
@@ -306,7 +306,7 @@ class ThermalDisplacementMatrices(MSONable):
         self,
         other: ThermalDisplacementMatrices,
         filename: str | PathLike = "visualization.vesta",
-        which_structure: int = 0,
+        which_structure: Literal[0, 1] = 0,
     ) -> None:
         """Will create a VESTA file for visualization of the directionality criterion.
 
@@ -328,8 +328,10 @@ class ThermalDisplacementMatrices(MSONable):
             structure = self.structure
         elif which_structure == 1:
             structure = other.structure
+        else:
+            raise ValueError("Illegal which_structure value.")
 
-        with open(filename, mode="w") as file:
+        with open(filename, mode="w", encoding="utf-8") as file:
             #
             file.write("#VESTA_FORMAT_VERSION 3.5.4\n \n \n")
             file.write("CRYSTAL\n\n")
@@ -345,9 +347,9 @@ class ThermalDisplacementMatrices(MSONable):
             file.write("  0.000000   0.000000   0.000000   0.000000   0.000000   0.000000\n")  # error on parameters
             file.write("STRUC\n")
 
-            for isite, site in enumerate(structure):
+            for isite, site in enumerate(structure, start=1):
                 file.write(
-                    f"{isite + 1} {site.species_string} {site.species_string}{isite + 1} 1.0000 {site.frac_coords[0]} "
+                    f"{isite} {site.species_string} {site.species_string}{isite} 1.0000 {site.frac_coords[0]} "
                     f"{site.frac_coords[1]} {site.frac_coords[2]} 1a 1\n"
                 )
                 file.write(" 0.000000 0.000000 0.000000 0.00\n")  # error on positions - zero here

@@ -244,7 +244,7 @@ class GrainBoundary(Structure):
                 coincident_sites.append(self.sites[idx])
         return coincident_sites
 
-    def __str__(self):
+    def __str__(self) -> str:
         comp = self.composition
         outs = [
             f"Gb Summary ({comp.formula})",
@@ -265,8 +265,8 @@ class GrainBoundary(Structure):
             f"angles: {' '.join(to_str(i) for i in self.lattice.angles)}",
             f"Sites ({len(self)})",
         )
-        for idx, site in enumerate(self):
-            outs.append(f"{idx + 1} {site.species_string} {' '.join(to_str(coord, 12) for coord in site.frac_coords)}")
+        for idx, site in enumerate(self, start=1):
+            outs.append(f"{idx} {site.species_string} {' '.join(to_str(coord, 12) for coord in site.frac_coords)}")
         return "\n".join(outs)
 
     def as_dict(self):
@@ -563,7 +563,7 @@ class GrainBoundaryGenerator:
 
                 plane = np.matmul(rotation_axis, metric)
                 fractions = [Fraction(x).limit_denominator() for x in plane]
-                least_mul = reduce(lcm, [f.denominator for f in fractions])
+                least_mul = reduce(lcm, [fraction.denominator for fraction in fractions])
                 plane = [int(round(x * least_mul)) for x in plane]
 
         if reduce(gcd, plane) != 1:
@@ -590,6 +590,7 @@ class GrainBoundaryGenerator:
                 else:
                     mu, mv = ratio
                 trans_cry1 = np.array([[1, 0, 0], [-0.5, np.sqrt(3.0) / 2.0, 0], [0, 0, np.sqrt(mu / mv)]])
+
             elif lat_type.lower() == "r":
                 if ratio is None:
                     c2_a2_ratio = 1.0
@@ -603,6 +604,7 @@ class GrainBoundaryGenerator:
                         [0, -1 * np.sqrt(3.0) / 3.0, 1.0 / 3 * np.sqrt(c2_a2_ratio)],
                     ]
                 )
+
             else:
                 if lat_type.lower() == "t":
                     if ratio is None:
@@ -610,12 +612,19 @@ class GrainBoundaryGenerator:
                     else:
                         mu, mv = ratio
                     lam = mv
+
                 elif lat_type.lower() == "o":
                     new_ratio = [1 if v is None else v for v in ratio]
                     mu, lam, mv = new_ratio
+
+                else:
+                    raise RuntimeError("Invalid lattice type.")
+
                 trans_cry1 = np.array([[1, 0, 0], [0, np.sqrt(lam / mv), 0], [0, 0, np.sqrt(mu / mv)]])
+
         else:
             trans_cry1 = trans_cry
+
         grain_matrix = np.dot(t2, trans_cry1)
         plane_init = np.cross(grain_matrix[0], grain_matrix[1])
         if lat_type.lower() != "c":
@@ -970,13 +979,14 @@ class GrainBoundaryGenerator:
 
                 surface = np.matmul(r_axis, metric)
                 fractions = [Fraction(x).limit_denominator() for x in surface]
-                least_mul = reduce(lcm, [f.denominator for f in fractions])
+                least_mul = reduce(lcm, [fraction.denominator for fraction in fractions])
                 surface = [int(round(x * least_mul)) for x in surface]
 
         if reduce(gcd, surface) != 1:
             index = reduce(gcd, surface)
             surface = [int(round(x / index)) for x in surface]
 
+        lam = None
         if lat_type.lower() == "h":
             # set the value for u,v,w,mu,mv,m,n,d,x
             # check the reference for the meaning of these parameters
@@ -1033,6 +1043,7 @@ class GrainBoundaryGenerator:
             com_fac = reduce(gcd, all_list)
             sigma = F / com_fac
             r_matrix = (np.array(r_list) / com_fac / sigma).reshape(3, 3)
+
         elif lat_type.lower() == "r":
             # set the value for u,v,w,mu,mv,m,n,d
             # check the reference for the meaning of these parameters
@@ -1107,8 +1118,10 @@ class GrainBoundaryGenerator:
             com_fac = reduce(gcd, all_list)
             sigma = F / com_fac
             r_matrix = (np.array(r_list) / com_fac / sigma).reshape(3, 3)
+
         else:
             u, v, w = r_axis
+            mu = mv = None
             if lat_type.lower() == "c":
                 mu = 1
                 lam = 1
@@ -1204,7 +1217,7 @@ class GrainBoundaryGenerator:
         # transform surface, r_axis, r_matrix in terms of primitive lattice
         surface = np.matmul(surface, np.transpose(trans_cry))
         fractions = [Fraction(x).limit_denominator() for x in surface]
-        least_mul = reduce(lcm, [f.denominator for f in fractions])
+        least_mul = reduce(lcm, [fraction.denominator for fraction in fractions])
         surface = [int(round(x * least_mul)) for x in surface]
         if reduce(gcd, surface) != 1:
             index = reduce(gcd, surface)
@@ -1216,6 +1229,7 @@ class GrainBoundaryGenerator:
         # set one vector of the basis to the rotation axis direction, and
         # obtain the corresponding transform matrix
         eye = np.eye(3, dtype=int)
+        hh = kk = ll = None
         for hh in range(3):
             if abs(r_axis[hh]) != 0:
                 eye[hh] = np.array(r_axis)
@@ -1227,19 +1241,19 @@ class GrainBoundaryGenerator:
 
         # with the rotation matrix to construct the CSL lattice, check reference for details
         fractions = [Fraction(x).limit_denominator() for x in new_rot[:, kk]]
-        least_mul = reduce(lcm, [f.denominator for f in fractions])
+        least_mul = reduce(lcm, [fraction.denominator for fraction in fractions])
         scale = np.zeros((3, 3))
         scale[hh, hh] = 1
         scale[kk, kk] = least_mul
         scale[ll, ll] = sigma / least_mul
+        n_final = None
         for idx in range(least_mul):
             check_int = idx * new_rot[:, kk] + (sigma / least_mul) * new_rot[:, ll]
             if all(np.round(x, 5).is_integer() for x in list(check_int)):
                 n_final = idx
                 break
-        try:
-            n_final  # noqa: B018
-        except NameError:
+
+        if n_final is None:
             raise RuntimeError("Something is wrong. Check if this GB exists or not")
         scale[kk, ll] = n_final
         # each row of mat_csl is the CSL lattice vector
@@ -2031,6 +2045,7 @@ class GrainBoundaryGenerator:
                 warnings.warn("Too large matrix. Suggest to use quick_gen=False")
             return t_matrix
 
+        c_index = 0
         for ii, jj in enumerate(miller):
             if jj == 0:
                 ab_vector.append(csl[ii])
@@ -2068,6 +2083,8 @@ class GrainBoundaryGenerator:
         if normal:
             c_cross = np.cross(np.matmul(t_matrix[2], trans), np.matmul(surface, ctrans))
             normal_init = np.linalg.norm(c_cross) < 1e-8
+        else:
+            normal_init = False
 
         jj = np.arange(0, max_j + 1)
         combination = []
@@ -2151,6 +2168,7 @@ class GrainBoundaryGenerator:
                     logger.info("Found perpendicular c vector")
 
         # find the best a, b vectors with their formed area smallest and average norm of a,b smallest.
+        ab_norm = None
         for ii in combinations(ab_vector, 2):
             area_temp = np.linalg.norm(np.cross(np.matmul(ii[0], trans), np.matmul(ii[1], trans)))
             if abs(area_temp - 0) > 1.0e-8:
@@ -2160,6 +2178,7 @@ class GrainBoundaryGenerator:
                     ab_norm = ab_norm_temp
                     t_matrix[0] = ii[0]
                     t_matrix[1] = ii[1]
+
                 elif area_temp < area or (abs(area - area_temp) < 1.0e-8 and ab_norm_temp < ab_norm):
                     t_matrix[0] = ii[0]
                     t_matrix[1] = ii[1]
@@ -2185,7 +2204,8 @@ class GrainBoundaryGenerator:
             mat (3 by 3 array): input matrix
             mag (int): reduce times for the determinant
             r_matrix (3 by 3 array): rotation matrix
-        Return:
+
+        Returns:
             the reduced integer array
         """
         max_j = abs(int(round(np.linalg.det(mat) / mag)))
@@ -2218,7 +2238,8 @@ class GrainBoundaryGenerator:
 
         Args:
             vec (1 by 3 array float vector): input float vector
-        Return:
+
+        Returns:
             the surface miller index of the input vector.
         """
         miller = [None] * 3
@@ -2257,7 +2278,8 @@ def fix_pbc(structure, matrix=None):
         matrix (lattice matrix, 3 by 3 array/matrix): new structure's lattice matrix,
             If None, use input structure's matrix.
 
-    Return:
+
+    Returns:
         new structure with fixed frac_coords and lattice matrix
     """
     spec = []
@@ -2285,7 +2307,8 @@ def symm_group_cubic(mat):
     Args:
         mat (n by 3 array/matrix): lattice matrix
 
-    Return:
+
+    Returns:
         cubic symmetric equivalents of the list of vectors.
     """
     sym_group = np.zeros([24, 3, 3])

@@ -176,6 +176,7 @@ class VaspInputSet(InputGenerator, abc.ABC):
                 same name as the InputSet (e.g., MPStaticSet.zip)
         """
         if potcar_spec:
+            vasp_input = None
             if make_dir_if_not_present:
                 os.makedirs(output_dir, exist_ok=True)
 
@@ -191,19 +192,20 @@ class VaspInputSet(InputGenerator, abc.ABC):
             vasp_input.write_input(output_dir, make_dir_if_not_present=make_dir_if_not_present)
 
         cif_name = ""
-        if include_cif:
+        if include_cif and vasp_input is not None:
             struct = vasp_input["POSCAR"].structure
             cif_name = f"{output_dir}/{struct.formula.replace(' ', '')}.cif"
             struct.to(filename=cif_name)
 
         if zip_output:
-            filename = type(self).__name__ + ".zip"
+            filename = f"{type(self).__name__}.zip"
             with ZipFile(os.path.join(output_dir, filename), mode="w") as zip_file:
                 for file in ["INCAR", "POSCAR", "KPOINTS", "POTCAR", "POTCAR.spec", cif_name]:
                     try:
                         zip_file.write(os.path.join(output_dir, file), arcname=file)
                     except FileNotFoundError:
                         pass
+
                     try:
                         os.remove(os.path.join(output_dir, file))
                     except (FileNotFoundError, PermissionError, IsADirectoryError):
@@ -1014,10 +1016,10 @@ class DictSet(VaspInputSet):
                 wavecar_files = sorted(glob(str(Path(prev_calc_dir) / (fname + "*"))))
                 if wavecar_files:
                     if fname == "WFULL":
-                        for f in wavecar_files:
-                            fname = Path(f).name
+                        for wavecar_file in wavecar_files:
+                            fname = Path(wavecar_file).name
                             fname = fname.split(".")[0]
-                            files_to_transfer[fname] = f
+                            files_to_transfer[fname] = wavecar_file
                     else:
                         files_to_transfer[fname] = str(wavecar_files[-1])
 
@@ -1040,10 +1042,10 @@ class DictSet(VaspInputSet):
         input_set = cls(_dummy_structure, **kwargs)
         return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return type(self).__name__
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return type(self).__name__
 
     def write_input(
@@ -1114,11 +1116,10 @@ class DictSet(VaspInputSet):
 
         if custom_encut is not None:
             encut = custom_encut
+        elif self.incar.get("ENCUT", 0) > 0:
+            encut = self.incar["ENCUT"]  # get the ENCUT val
         else:
-            if self.incar.get("ENCUT", 0) > 0:
-                encut = self.incar["ENCUT"]  # get the ENCUT val
-            else:
-                encut = max(i_species.enmax for i_species in self.get_vasp_input()["POTCAR"])
+            encut = max(i_species.enmax for i_species in self.get_vasp_input()["POTCAR"])
 
         # PREC=Normal is VASP default
         PREC = self.incar.get("PREC", "Normal") if custom_prec is None else custom_prec
@@ -2271,7 +2272,7 @@ class MITNEBSet(DictSet):
     Note that EDIFF is not on a per atom basis for this input set.
     """
 
-    def __init__(self, structures, unset_encut=False, **kwargs):
+    def __init__(self, structures, unset_encut=False, **kwargs) -> None:
         """
         Args:
             structures: List of Structure objects.
@@ -2686,14 +2687,14 @@ class LobsterSet(DictSet):
     def kpoints_updates(self) -> dict | Kpoints:
         """Get updates to the kpoints configuration for this calculation type."""
         # test, if this is okay
-        return {"reciprocal_density": self.reciprocal_density if self.reciprocal_density else 310}
+        return {"reciprocal_density": self.reciprocal_density or 310}
 
     @property
     def incar_updates(self) -> dict:
         """Get updates to the INCAR config for this calculation type."""
         from pymatgen.io.lobster import Lobsterin
 
-        potcar_symbols = self.poscar.site_symbols
+        potcar_symbols = self.potcar_symbols
 
         # predefined basis! Check if the basis is okay! (charge spilling and bandoverlaps!)
         if self.user_supplied_basis is None and self.address_basis_file is None:
@@ -2710,6 +2711,8 @@ class LobsterSet(DictSet):
                 if atom_type not in self.user_supplied_basis:
                     raise ValueError(f"There are no basis functions for the atom type {atom_type}")
             basis = [f"{key} {value}" for key, value in self.user_supplied_basis.items()]
+        else:
+            basis = None
 
         lobsterin = Lobsterin(settingsdict={"basisfunctions": basis})
         nbands = lobsterin._get_nbands(structure=self.structure)  # type: ignore

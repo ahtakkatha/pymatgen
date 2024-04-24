@@ -241,17 +241,16 @@ class ConnectedComponent(MSONable):
                 if links_data is None:
                     edge_data = None
 
+                elif (env_node1, env_node2, key) in links_data:
+                    edge_data = links_data[(env_node1, env_node2, key)]
+                elif (env_node2, env_node1, key) in links_data:
+                    edge_data = links_data[(env_node2, env_node1, key)]
+                elif (env_node1, env_node2) in links_data:
+                    edge_data = links_data[(env_node1, env_node2)]
+                elif (env_node2, env_node1) in links_data:
+                    edge_data = links_data[(env_node2, env_node1)]
                 else:
-                    if (env_node1, env_node2, key) in links_data:
-                        edge_data = links_data[(env_node1, env_node2, key)]
-                    elif (env_node2, env_node1, key) in links_data:
-                        edge_data = links_data[(env_node2, env_node1, key)]
-                    elif (env_node1, env_node2) in links_data:
-                        edge_data = links_data[(env_node1, env_node2)]
-                    elif (env_node2, env_node1) in links_data:
-                        edge_data = links_data[(env_node2, env_node1)]
-                    else:
-                        edge_data = None
+                    edge_data = None
 
                 if edge_data:
                     self._connected_subgraph.add_edge(env_node1, env_node2, key, **edge_data)
@@ -742,7 +741,11 @@ class ConnectedComponent(MSONable):
         check_centered_connected_subgraph = nx.MultiGraph()
         check_centered_connected_subgraph.add_nodes_from(centered_connected_subgraph.nodes())
         check_centered_connected_subgraph.add_edges_from(
-            [e for e in centered_connected_subgraph.edges(data=True) if np.allclose(e[2]["delta"], np.zeros(3))]
+            [
+                edge
+                for edge in centered_connected_subgraph.edges(data=True)
+                if np.allclose(edge[2]["delta"], np.zeros(3))
+            ]
         )
         if not is_connected(check_centered_connected_subgraph):
             raise RuntimeError("Could not find a centered graph.")

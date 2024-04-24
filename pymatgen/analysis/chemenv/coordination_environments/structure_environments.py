@@ -505,7 +505,7 @@ class StructureEnvironments(MSONable):
                     }
                     site_voronoi_indices = [
                         inb
-                        for inb, voro_nb_dict in enumerate(site_voronoi)
+                        for inb, _voro_nb_dict in enumerate(site_voronoi)
                         if (
                             distance_conditions[idp][inb]
                             and angle_conditions[iap][inb]
@@ -2211,7 +2211,7 @@ class ChemicalEnvironments(MSONable):
             coord_geoms: coordination geometries to be added to the chemical environment.
         """
         if coord_geoms is None:
-            self.coord_geoms = {}
+            self.coord_geoms: dict = {}
         else:
             raise NotImplementedError(
                 "Constructor for ChemicalEnvironments with the coord_geoms argument is not yet implemented"
@@ -2356,6 +2356,7 @@ class ChemicalEnvironments(MSONable):
         if len(self.coord_geoms) == 0:
             out += " => No coordination in it <=\n"
             return out
+        mp_symbol = ""
         for key in self.coord_geoms:
             mp_symbol = key
             break

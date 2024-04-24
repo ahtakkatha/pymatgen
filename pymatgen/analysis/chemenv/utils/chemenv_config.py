@@ -78,12 +78,11 @@ class ChemEnvConfig:
                 break
             elif test == "S":
                 config_file = self.save()
+                print(f"Configuration has been saved to file {config_file!r}")
                 break
             else:
                 print(" ... wrong key, try again ...")
             print()
-        if test == "S":
-            print(f"Configuration has been saved to file {config_file!r}")
 
     @property
     def has_materials_project_access(self):
@@ -97,7 +96,7 @@ class ChemEnvConfig:
         self.package_options = self.DEFAULT_PACKAGE_OPTIONS
         print("Choose between the following strategies : ")
         strategies = list(strategies_class_lookup)
-        for idx, strategy in enumerate(strategies, 1):
+        for idx, strategy in enumerate(strategies, start=1):
             print(f" <{idx}> : {strategy}")
         test = input(" ... ")
         self.package_options["default_strategy"] = {

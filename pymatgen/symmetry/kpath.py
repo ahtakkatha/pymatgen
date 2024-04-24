@@ -12,7 +12,6 @@ import networkx as nx
 import numpy as np
 import spglib
 from monty.dev import requires
-from scipy.linalg import sqrtm
 
 from pymatgen.core.lattice import Lattice
 from pymatgen.core.operations import MagSymmOp, SymmOp
@@ -1507,18 +1506,18 @@ class KPathLatimerMunro(KPathBase):
             # not the face center point (don't need to check it since it's not
             # shared with other facets)
             face_center_ind = facet_as_key_point_inds[-1]
-            for j, ind in enumerate(facet_as_key_point_inds_bndy):
+            for j, ind in enumerate(facet_as_key_point_inds_bndy, start=-1):
                 if (
-                    min(ind, facet_as_key_point_inds_bndy[j - 1]),
-                    max(ind, facet_as_key_point_inds_bndy[j - 1]),
+                    min(ind, facet_as_key_point_inds_bndy[j]),
+                    max(ind, facet_as_key_point_inds_bndy[j]),
                 ) not in key_lines:
                     key_lines.append(
                         (
-                            min(ind, facet_as_key_point_inds_bndy[j - 1]),
-                            max(ind, facet_as_key_point_inds_bndy[j - 1]),
+                            min(ind, facet_as_key_point_inds_bndy[j]),
+                            max(ind, facet_as_key_point_inds_bndy[j]),
                         )
                     )
-                k = j + 1 if j != len(facet_as_key_point_inds_bndy) - 1 else 0
+                k = j + 2 if j != len(facet_as_key_point_inds_bndy) - 2 else 0
                 if (
                     min(ind, facet_as_key_point_inds_bndy[k]),
                     max(ind, facet_as_key_point_inds_bndy[k]),
@@ -1849,160 +1848,54 @@ class KPathLatimerMunro(KPathBase):
 
         used_axes = []
 
+        def find_face_center(name: str, IRBZ_points):
+            for rotn in rpgdict["rotations"][name]:
+                ax = rotn["axis"]
+                op = rotn["op"]
+                rot_boundaries = None
+
+                if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
+                    op, IRBZ_points, atol
+                ):
+                    face_center_found = False
+                    for point in IRBZ_points:
+                        if point[0] in face_center_inds:
+                            cross = D * np.dot(g_inv, np.cross(ax, point[1]))
+                            if not np.allclose(cross, 0, atol=atol):
+                                rot_boundaries = [cross, -1 * np.dot(op, cross)]
+                                face_center_found = True
+                                used_axes.append(ax)
+                                break
+
+                    if not face_center_found:
+                        print("face center not found")
+                        for point in IRBZ_points:
+                            cross = D * np.dot(g_inv, np.cross(ax, point[1]))
+                            if not np.allclose(cross, 0, atol=atol):
+                                rot_boundaries = [cross, -1 * np.dot(op, cross)]
+                                used_axes.append(ax)
+                                break
+
+                    if rot_boundaries is None:
+                        raise RuntimeError("Failed to find rotation boundaries.")
+
+                    return self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+                return IRBZ_points
+            return IRBZ_points
+
         # six-fold rotoinversion always comes with horizontal mirror so don't
         # need to check
-        for rotn in rpgdict["rotations"]["six-fold"]:
-            ax = rotn["axis"]
-            op = rotn["op"]
-            if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
-                op, IRBZ_points, atol
-            ):
-                face_center_found = False
-                for point in IRBZ_points:
-                    if point[0] in face_center_inds:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            face_center_found = True
-                            used_axes.append(ax)
-                            break
-                if not face_center_found:
-                    print("face center not found")
-                    for point in IRBZ_points:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            used_axes.append(ax)
-                            break
-                IRBZ_points = self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+        IRBZ_points = find_face_center("six-fold", IRBZ_points)
 
-        for rotn in rpgdict["rotations"]["rotoinv-four-fold"]:
-            ax = rotn["axis"]
-            op = rotn["op"]
-            if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
-                op, IRBZ_points, atol
-            ):
-                face_center_found = False
-                for point in IRBZ_points:
-                    if point[0] in face_center_inds:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, np.dot(op, cross)]
-                            face_center_found = True
-                            used_axes.append(ax)
-                            break
-                if not face_center_found:
-                    print("face center not found")
-                    for point in IRBZ_points:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            used_axes.append(ax)
-                            break
-                IRBZ_points = self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+        IRBZ_points = find_face_center("rotoinv-four-fold", IRBZ_points)
 
-        for rotn in rpgdict["rotations"]["four-fold"]:
-            ax = rotn["axis"]
-            op = rotn["op"]
-            if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
-                op, IRBZ_points, atol
-            ):
-                face_center_found = False
-                for point in IRBZ_points:
-                    if point[0] in face_center_inds:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            face_center_found = True
-                            used_axes.append(ax)
-                            break
-                if not face_center_found:
-                    print("face center not found")
-                    for point in IRBZ_points:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            used_axes.append(ax)
-                            break
-                IRBZ_points = self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+        IRBZ_points = find_face_center("four-fold", IRBZ_points)
 
-        for rotn in rpgdict["rotations"]["rotoinv-three-fold"]:
-            ax = rotn["axis"]
-            op = rotn["op"]
-            if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
-                op, IRBZ_points, atol
-            ):
-                face_center_found = False
-                for point in IRBZ_points:
-                    if point[0] in face_center_inds:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [
-                                cross,
-                                -1 * np.dot(sqrtm(-1 * op), cross),
-                            ]
-                            face_center_found = True
-                            used_axes.append(ax)
-                            break
-                if not face_center_found:
-                    print("face center not found")
-                    for point in IRBZ_points:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            used_axes.append(ax)
-                            break
-                IRBZ_points = self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+        IRBZ_points = find_face_center("rotoinv-three-fold", IRBZ_points)
 
-        for rotn in rpgdict["rotations"]["three-fold"]:
-            ax = rotn["axis"]
-            op = rotn["op"]
-            if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
-                op, IRBZ_points, atol
-            ):
-                face_center_found = False
-                for point in IRBZ_points:
-                    if point[0] in face_center_inds:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            face_center_found = True
-                            used_axes.append(ax)
-                            break
-                if not face_center_found:
-                    print("face center not found")
-                    for point in IRBZ_points:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            used_axes.append(ax)
-                            break
-                IRBZ_points = self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+        IRBZ_points = find_face_center("three-fold", IRBZ_points)
 
-        for rotn in rpgdict["rotations"]["two-fold"]:
-            ax = rotn["axis"]
-            op = rotn["op"]
-            if not np.any([np.allclose(ax, usedax, atol) for usedax in used_axes]) and self._op_maps_IRBZ_to_self(
-                op, IRBZ_points, atol
-            ):
-                face_center_found = False
-                for point in IRBZ_points:
-                    if point[0] in face_center_inds:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            face_center_found = True
-                            used_axes.append(ax)
-                            break
-                if not face_center_found:
-                    print("face center not found")
-                    for point in IRBZ_points:
-                        cross = D * np.dot(g_inv, np.cross(ax, point[1]))
-                        if not np.allclose(cross, 0, atol=atol):
-                            rot_boundaries = [cross, -1 * np.dot(op, cross)]
-                            used_axes.append(ax)
-                            break
-                IRBZ_points = self._reduce_IRBZ(IRBZ_points, rot_boundaries, g, atol)
+        IRBZ_points = find_face_center("two-fold", IRBZ_points)
 
         return [point[0] for point in IRBZ_points]
 
@@ -2035,22 +1928,29 @@ class KPathLatimerMunro(KPathBase):
                 if np.isclose(tr, 3, atol=atol):
                     continue
                 if np.isclose(tr, -1, atol=atol):  # two-fold rotation
+                    ax = None
                     for j in range(3):
                         if np.isclose(evals[j], 1, atol=atol):
                             ax = evects[:, j]
                     dct["rotations"]["two-fold"].append({"ind": idx, "axis": ax, "op": op})
+
                 elif np.isclose(tr, 0, atol=atol):  # three-fold rotation
+                    ax = None
                     for j in range(3):
                         if np.isreal(evals[j]) and np.isclose(np.absolute(evals[j]), 1, atol=atol):
                             ax = evects[:, j]
                     dct["rotations"]["three-fold"].append({"ind": idx, "axis": ax, "op": op})
+
                 # four-fold rotation
                 elif np.isclose(tr, 1, atol=atol):
+                    ax = None
                     for j in range(3):
                         if np.isreal(evals[j]) and np.isclose(np.absolute(evals[j]), 1, atol=atol):
                             ax = evects[:, j]
                     dct["rotations"]["four-fold"].append({"ind": idx, "axis": ax, "op": op})
+
                 elif np.isclose(tr, 2, atol=atol):  # six-fold rotation
+                    ax = None
                     for j in range(3):
                         if np.isreal(evals[j]) and np.isclose(np.absolute(evals[j]), 1, atol=atol):
                             ax = evects[:, j]
@@ -2060,24 +1960,32 @@ class KPathLatimerMunro(KPathBase):
             if np.isclose(det, -1, atol=atol):
                 if np.isclose(tr, -3, atol=atol):
                     dct["inversion"].append({"ind": idx, "op": PAR})
+
                 elif np.isclose(tr, 1, atol=atol):  # two-fold rotation
+                    norm = None
                     for j in range(3):
                         if np.isclose(evals[j], -1, atol=atol):
                             norm = evects[:, j]
                     dct["reflections"].append({"ind": idx, "normal": norm, "op": op})
+
                 elif np.isclose(tr, 0, atol=atol):  # three-fold rotoinversion
+                    ax = None
                     for j in range(3):
                         if np.isreal(evals[j]) and np.isclose(np.absolute(evals[j]), 1, atol=atol):
                             ax = evects[:, j]
                     dct["rotations"]["rotoinv-three-fold"].append({"ind": idx, "axis": ax, "op": op})
+
                 # four-fold rotoinversion
                 elif np.isclose(tr, -1, atol=atol):
+                    ax = None
                     for j in range(3):
                         if np.isreal(evals[j]) and np.isclose(np.absolute(evals[j]), 1, atol=atol):
                             ax = evects[:, j]
                     dct["rotations"]["rotoinv-four-fold"].append({"ind": idx, "axis": ax, "op": op})
+
                 # six-fold rotoinversion
                 elif np.isclose(tr, -2, atol=atol):
+                    ax = None
                     for j in range(3):
                         if np.isreal(evals[j]) and np.isclose(np.absolute(evals[j]), 1, atol=atol):
                             ax = evects[:, j]
@@ -2212,7 +2120,7 @@ class KPathLatimerMunro(KPathBase):
                 pop_orbits.append(grouped_inds[idx][worst_next_choice])
                 pop_labels.append(initial_max_cosine_label_inds[grouped_inds[idx][worst_next_choice]])
 
-        if len(unassigned_orbits) != 0:
+        if unassigned_orbits:
             max_cosine_orbits_copy = self._reduce_cosines_array(max_cosine_orbits_copy, pop_orbits, pop_labels)
             unassigned_orbits_labels = self._get_orbit_labels(max_cosine_orbits_copy, key_points_inds_orbits, atol)
             for idx, unassigned_orbit in enumerate(unassigned_orbits):

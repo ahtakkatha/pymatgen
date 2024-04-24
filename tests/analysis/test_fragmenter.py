@@ -12,7 +12,7 @@ __author__ = "Samuel Blau"
 __email__ = "samblau1@gmail.com"
 
 
-TEST_DIR = f"{TEST_FILES_DIR}/fragmenter_files"
+TEST_DIR = f"{TEST_FILES_DIR}/analysis/local_env/fragmenter_files"
 
 
 class TestFragmentMolecule(PymatgenTest):
@@ -95,7 +95,7 @@ class TestFragmentMolecule(PymatgenTest):
         )
         assert fragmenter.open_rings is False
         assert fragmenter.opt_steps == 0
-        edges = {(e[0], e[1]): None for e in self.pc_edges}
+        edges = {(edge[0], edge[1]): None for edge in self.pc_edges}
         default_mol_graph = MoleculeGraph.from_edges(self.pc, edges=edges)
         assert fragmenter.mol_graph == default_mol_graph
         assert fragmenter.total_unique_fragments == 20

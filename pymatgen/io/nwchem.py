@@ -438,8 +438,10 @@ class NwInput(MSONable):
         tasks = []
         charge = spin_multiplicity = title = basis_set = None
         basis_set_option = None
+        mol = None
         theory_directives: dict[str, dict[str, str]] = {}
         geom_options = symmetry_options = memory_options = None
+
         lines = string_input.strip().split("\n")
         while len(lines) > 0:
             line = lines.pop(0).strip()
@@ -620,8 +622,7 @@ class NwOutput:
 
     def get_excitation_spectrum(self, width=0.1, npoints=2000):
         """
-        Generate an excitation spectra from the singlet roots of TDDFT
-        calculations.
+        Generate an excitation spectra from the singlet roots of TDDFT calculations.
 
         Args:
             width (float): Width for Gaussian smearing.
@@ -629,8 +630,7 @@ class NwOutput:
                 curve.
 
         Returns:
-            (ExcitationSpectrum) which can be plotted using
-                pymatgen.vis.plotters.SpectrumPlotter.
+            ExcitationSpectrum: can be plotted using pymatgen.vis.plotters.SpectrumPlotter.
         """
         roots = self.parse_tddft()
         data = roots["singlet"]

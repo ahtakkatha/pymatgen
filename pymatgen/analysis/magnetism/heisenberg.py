@@ -95,6 +95,7 @@ class HeisenbergMapper:
         # Check how many commensurate graphs we found
         if len(self.sgraphs) < 2:
             raise SystemExit("We need at least 2 unique orderings.")
+
         # Set attributes
         self._get_nn_dict()
         self._get_exchange_df()
@@ -187,9 +188,9 @@ class HeisenbergMapper:
         # Keep only up to NNNN and call dists equal if they are within tol
         all_dists = sorted(set(all_dists))
         rm_list = []
-        for idx, d in enumerate(all_dists[:-1]):
-            if abs(d - all_dists[idx + 1]) < tol:
-                rm_list.append(idx + 1)
+        for idx, d in enumerate(all_dists[:-1], start=1):
+            if abs(d - all_dists[idx]) < tol:
+                rm_list.append(idx)
 
         all_dists = [d for idx, d in enumerate(all_dists) if idx not in rm_list]
 
@@ -211,6 +212,7 @@ class HeisenbergMapper:
                 dist = round(cs[-1], 2)  # i_j distance
 
                 j = cs[2]  # j index
+                j_key = None
                 for key, value in unique_site_ids.items():
                     if j in key:
                         j_key = value
@@ -273,6 +275,7 @@ class HeisenbergMapper:
 
             # Loop over all sites in each graph and compute |S_i . S_j|
             # for n+1 unique graphs to compute n exchange params
+            order = ""
             for _graph in sgraphs:
                 sgraph = sgraphs_copy.pop(0)
                 ex_row = pd.DataFrame(np.zeros((1, n_nn_j + 1)), index=[sgraph_index], columns=columns)
@@ -281,6 +284,7 @@ class HeisenbergMapper:
                     # s_i_sign = np.sign(sgraph.structure.site_properties['magmom'][i])
                     s_i = sgraph.structure.site_properties["magmom"][idx]
 
+                    i_index = None
                     for k, v in unique_site_ids.items():
                         if idx in k:
                             i_index = v
@@ -297,6 +301,7 @@ class HeisenbergMapper:
                         # s_j_sign = np.sign(sgraph.structure.site_properties['magmom'][j_site])
                         s_j = sgraph.structure.site_properties["magmom"][j_site]
 
+                        j_index = None
                         for k, v in unique_site_ids.items():
                             if j_site in k:
                                 j_index = v
@@ -308,6 +313,7 @@ class HeisenbergMapper:
                             order = "-nnn"
                         elif abs(dist - dists["nnnn"]) <= tol:
                             order = "-nnnn"
+
                         j_ij = f"{i_index}-{j_index}{order}"
                         j_ji = f"{j_index}-{i_index}{order}"
 
@@ -393,6 +399,8 @@ class HeisenbergMapper:
         fm_struct, afm_struct = None, None
         mag_min = np.inf
         mag_max = 0.001
+        fm_e = 0
+        afm_e = 0
         fm_e_min = 0
         afm_e_min = 0
 
@@ -567,11 +575,10 @@ class HeisenbergMapper:
 
         # Save to a json file if desired
         if filename:
-            if filename.endswith(".json"):
-                dumpfn(igraph, filename)
-            else:
+            if not filename.endswith(".json"):
                 filename += ".json"
-                dumpfn(igraph, filename)
+
+            dumpfn(igraph, filename)
 
         return igraph
 
@@ -589,15 +596,16 @@ class HeisenbergMapper:
             j_exc (float): Exchange parameter in meV
         """
         # Get unique site identifiers
+        i_index = 0
+        j_index = 0
         for k, v in self.unique_site_ids.items():
             if i in k:
                 i_index = v
             if j in k:
                 j_index = v
 
-        order = ""
-
         # Determine order of interaction
+        order = ""
         if abs(dist - self.dists["nn"]) <= self.tol:
             order = "-nn"
         elif abs(dist - self.dists["nnn"]) <= self.tol:
@@ -729,8 +737,9 @@ class HeisenbergScreener:
         # Check for duplicate / degenerate states (sometimes different initial
         # configs relax to the same state)
         remove_list = []
+        e_tol = 6  # 10^-6 eV/atom tol on energies
+
         for idx, energy in enumerate(energies):
-            e_tol = 6  # 10^-6 eV/atom tol on energies
             energy = round(energy, e_tol)
             if idx not in remove_list:
                 for i_check, e_check in enumerate(energies):
@@ -746,7 +755,7 @@ class HeisenbergScreener:
         #         remove_list.append(idx)
 
         # Remove duplicates
-        if len(remove_list) > 0:
+        if remove_list:
             ordered_structures = [struct for idx, struct in enumerate(ordered_structures) if idx not in remove_list]
             energies = [energy for idx, energy in enumerate(energies) if idx not in remove_list]
 
@@ -923,7 +932,7 @@ class HeisenbergModel(MSONable):
 
         # Reconstitute the exchange matrix DataFrame
         try:
-            ex_mat = eval(dct["ex_mat"])
+            ex_mat = literal_eval(dct["ex_mat"])
             ex_mat = pd.DataFrame.from_dict(ex_mat)
         except SyntaxError:  # if ex_mat is empty
             ex_mat = pd.DataFrame(columns=["E", "E0"])
@@ -958,15 +967,16 @@ class HeisenbergModel(MSONable):
             j_exc (float): Exchange parameter in meV
         """
         # Get unique site identifiers
+        i_index = 0
+        j_index = 0
         for k in self.unique_site_ids:
             if i in k:
                 i_index = self.unique_site_ids[k]
             if j in k:
                 j_index = self.unique_site_ids[k]
 
-        order = ""
-
         # Determine order of interaction
+        order = ""
         if abs(dist - self.dists["nn"]) <= self.tol:
             order = "-nn"
         elif abs(dist - self.dists["nnn"]) <= self.tol:

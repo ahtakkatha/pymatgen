@@ -11,7 +11,7 @@ from collections import defaultdict, namedtuple
 from itertools import combinations
 from operator import itemgetter
 from shutil import which
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, cast
 
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -35,6 +35,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from typing import Any, Callable
 
     from igraph import Graph
     from numpy.typing import ArrayLike
@@ -571,9 +572,8 @@ class StructureGraph(MSONable):
                 f"Edge between {from_index} and {to_index} cannot be altered; no edge exists between those sites."
             )
 
-        if to_jimage is None:
-            edge_index = 0
-        else:
+        edge_index = 0
+        if to_jimage is not None:
             for idx, properties in existing_edges.items():
                 if properties["to_jimage"] == to_jimage:
                     edge_index = idx
@@ -606,6 +606,7 @@ class StructureGraph(MSONable):
         if to_jimage is None:
             raise ValueError("Image must be supplied, to avoid ambiguity.")
 
+        edge_index = 0
         if existing_edges:
             for idx, props in existing_edges.items():
                 if props["to_jimage"] == to_jimage:
@@ -812,7 +813,7 @@ class StructureGraph(MSONable):
             n: index of site
 
         Returns:
-            (int): number of neighbors of site n.
+            int: number of neighbors of site n.
         """
         n_self_loops = sum(1 for n, v in self.graph.edges(n) if n == v)
         return self.graph.degree(n) - n_self_loops
@@ -1489,6 +1490,8 @@ class StructureGraph(MSONable):
         # without adding extra logic
         if getattr(self, "_supercell_sg", None) is None:
             self._supercell_sg = supercell_sg = self * (3, 3, 3)
+        else:
+            raise RuntimeError("Supercell spacegroup is not None.")
 
         # make undirected to find connected subgraphs
         supercell_sg.graph = nx.Graph(supercell_sg.graph)
@@ -2156,8 +2159,8 @@ class MoleculeGraph(MSONable):
             unique_frags = []
             for frag in fragments:
                 found = False
-                for f in unique_frags:
-                    if _isomorphic(frag, f):
+                for fragment in unique_frags:
+                    if _isomorphic(frag, fragment):
                         found = True
                         break
                 if not found:
@@ -2438,8 +2441,8 @@ class MoleculeGraph(MSONable):
 
         for cycle in cycles_nodes:
             edges = []
-            for idx, itm in enumerate(cycle):
-                edges.append((cycle[idx - 1], itm))
+            for idx, itm in enumerate(cycle, start=-1):
+                edges.append((cycle[idx], itm))
             cycles_edges.append(edges)
 
         return cycles_edges
@@ -2496,7 +2499,7 @@ class MoleculeGraph(MSONable):
             n: index of site
 
         Returns:
-            (int): the number of neighbors of site n.
+            int: the number of neighbors of site n.
         """
         n_self_loops = sum(1 for n, v in self.graph.edges(n) if n == v)
         return self.graph.degree(n) - n_self_loops

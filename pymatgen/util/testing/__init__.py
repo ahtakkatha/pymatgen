@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from unittest import TestCase
 
 import pytest
-from monty.json import MontyDecoder, MSONable
+from monty.json import MontyDecoder, MontyEncoder, MSONable
 from monty.serialization import loadfn
 
 from pymatgen.core import ROOT, SETTINGS, Structure
@@ -26,8 +26,8 @@ if TYPE_CHECKING:
 MODULE_DIR = Path(__file__).absolute().parent
 STRUCTURES_DIR = MODULE_DIR / ".." / "structures"
 TEST_FILES_DIR = Path(SETTINGS.get("PMG_TEST_FILES_DIR", f"{ROOT}/tests/files"))
-VASP_IN_DIR = f"{TEST_FILES_DIR}/vasp/inputs"
-VASP_OUT_DIR = f"{TEST_FILES_DIR}/vasp/outputs"
+VASP_IN_DIR = f"{TEST_FILES_DIR}/io/vasp/inputs"
+VASP_OUT_DIR = f"{TEST_FILES_DIR}/io/vasp/outputs"
 # fake POTCARs have original header information, meaning properties like number of electrons,
 # nuclear charge, core radii, etc. are unchanged (important for testing) while values of the and
 # pseudopotential kinetic energy corrections are scrambled to avoid VASP copyright infringement
@@ -132,7 +132,7 @@ class PymatgenTest(TestCase):
             return [o[0] for o in objects_by_protocol]
         return objects_by_protocol
 
-    def assert_msonable(self, obj, test_is_subclass=True):
+    def assert_msonable(self, obj: MSONable, test_is_subclass: bool = True) -> str:
         """Test if obj is MSONable and verify the contract is fulfilled.
 
         By default, the method tests whether obj is an instance of MSONable.
@@ -141,4 +141,7 @@ class PymatgenTest(TestCase):
         if test_is_subclass:
             assert isinstance(obj, MSONable)
         assert obj.as_dict() == type(obj).from_dict(obj.as_dict()).as_dict()
-        json.loads(obj.to_json(), cls=MontyDecoder)
+        json_str = json.dumps(obj.as_dict(), cls=MontyEncoder)
+        round_trip = json.loads(json_str, cls=MontyDecoder)
+        assert issubclass(type(round_trip), type(obj)), f"{type(round_trip)} != {type(obj)}"
+        return json_str

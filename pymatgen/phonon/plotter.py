@@ -205,15 +205,14 @@ class PhononDosPlotter:
             ax.set_xlim(xlim)
         if ylim:
             ax.set_ylim(ylim)
+        elif invert_axes:
+            _ylim = ax.get_ylim()
+            relevant_x = [p[1] for p in all_pts if _ylim[0] < p[0] < _ylim[1]] or ax.get_xlim()
+            ax.set_xlim((min(relevant_x), max(relevant_x)))
         else:
-            if invert_axes:
-                _ylim = ax.get_ylim()
-                relevant_x = [p[1] for p in all_pts if _ylim[0] < p[0] < _ylim[1]] or ax.get_xlim()
-                ax.set_xlim((min(relevant_x), max(relevant_x)))
-            else:
-                _xlim = ax.get_xlim()
-                relevant_y = [p[1] for p in all_pts if _xlim[0] < p[0] < _xlim[1]] or ax.get_ylim()
-                ax.set_ylim((min(relevant_y), max(relevant_y)))
+            _xlim = ax.get_xlim()
+            relevant_y = [p[1] for p in all_pts if _xlim[0] < p[0] < _xlim[1]] or ax.get_ylim()
+            ax.set_ylim((min(relevant_y), max(relevant_y)))
 
         if invert_axes:
             ax.axhline(0, linewidth=2, color="black", linestyle="--")
@@ -455,7 +454,7 @@ class PhononBSPlotter:
                 the colors will be automatically generated.
         """
         assert self._bs.structure is not None, "Structure is required for get_proj_plot"
-        elements = [e.symbol for e in self._bs.structure.elements]
+        elements = [elem.symbol for elem in self._bs.structure.elements]
         if site_comb == "element":
             assert 2 <= len(elements) <= 4, "the compound must have 2, 3 or 4 unique elements"
             indices: list[list[int]] = [[] for _ in range(len(elements))]
@@ -515,7 +514,7 @@ class PhononBSPlotter:
         if rgb_labels is not None:
             labels = rgb_labels  # type: ignore[assignment]
         elif site_comb == "element":
-            labels = [e.symbol for e in self._bs.structure.elements]
+            labels = [elem.symbol for elem in self._bs.structure.elements]
         else:
             labels = [f"{idx}" for idx in range(len(site_comb))]
         if len(indices) == 2:

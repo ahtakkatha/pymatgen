@@ -22,6 +22,7 @@ A quick overview of the module:
 
 from __future__ import annotations
 
+import abc
 import copy
 import hashlib
 import itertools
@@ -2404,7 +2405,7 @@ class GaussianTypeOrbitalBasisSet(AtomicMetadata):
     @property
     def nexp(self):
         """Number of exponents."""
-        return [len(e) for e in self.exponents]
+        return [len(exp) for exp in self.exponents]
 
     @typing.no_type_check
     def get_str(self) -> str:
@@ -2545,9 +2546,9 @@ class PotentialInfo(MSONable):
             data["nlcc"] = True
         if "GTH" in string:
             data["potential_type"] = "GTH"
-        for idx, char in enumerate(string):
-            if char == "Q" and string[idx + 1].isnumeric():
-                data["electrons"] = int("".join(_ for _ in string[idx + 1 :] if _.isnumeric()))
+        for idx, char in enumerate(string, start=1):
+            if char == "Q" and string[idx].isnumeric():
+                data["electrons"] = int("".join(_ for _ in string[idx:] if _.isnumeric()))
 
         for x in ("LDA", "PADA", "MGGA", "GGA", "HF", "PBE0", "PBE", "BP", "BLYP", "B3LYP", "SCAN"):
             if x in string:
@@ -2749,17 +2750,17 @@ class DataFile(MSONable):
     objects: Sequence | None = None
 
     @classmethod
-    def from_file(cls, filename) -> None:
-        """Load from a file."""
-        raise NotImplementedError
-        # with open(filename, encoding="utf-8") as file:
-        #     data = cls.from_str(file.read())
-        #     for obj in data.objects:
-        #         obj.filename = filename
-        #     return data
+    def from_file(cls, filename) -> Self:
+        """Load from a file, reserved for child classes."""
+        with open(filename, encoding="utf-8") as file:
+            data = cls.from_str(file.read())  # type: ignore[call-arg]
+            for obj in data.objects:  # type: ignore[attr-defined]
+                obj.filename = filename
+            return data  # type: ignore[return-value]
 
     @classmethod
-    def from_str(cls) -> None:
+    @abc.abstractmethod
+    def from_str(cls, string: str) -> None:
         """Initialize from a string."""
         raise NotImplementedError
 

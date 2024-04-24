@@ -12,6 +12,8 @@ from pymatgen.io.qchem.outputs import QCOutput
 from pymatgen.io.vasp.outputs import Xdatcar
 from pymatgen.util.testing import TEST_FILES_DIR, VASP_IN_DIR, VASP_OUT_DIR, PymatgenTest
 
+TEST_DIR = f"{TEST_FILES_DIR}/core/trajectory"
+
 
 class TestTrajectory(PymatgenTest):
     def setUp(self):
@@ -19,7 +21,7 @@ class TestTrajectory(PymatgenTest):
         self.traj = Trajectory.from_file(f"{VASP_OUT_DIR}/XDATCAR_traj")
         self.structures = xdatcar.structures
 
-        out = QCOutput(f"{TEST_FILES_DIR}/molecules/new_qchem_files/ts.out")
+        out = QCOutput(f"{TEST_FILES_DIR}/io/qchem/new_qchem_files/ts.out")
         last_mol = out.data["molecule_from_last_geometry"]
         species = last_mol.species
         coords = out.data["geometries"]
@@ -183,7 +185,7 @@ class TestTrajectory(PymatgenTest):
     def test_frame_properties(self):
         lattice, species, coords = self._get_lattice_species_and_coords()
 
-        props = [{"energy_per_atom": e} for e in [-3.0001, -3.0971, -3.0465]]
+        props = [{"energy_per_atom": ene} for ene in [-3.0001, -3.0971, -3.0465]]
 
         traj = Trajectory(lattice=lattice, species=species, coords=coords, frame_properties=props)
 
@@ -196,7 +198,9 @@ class TestTrajectory(PymatgenTest):
 
         species, coords, charge, spin = self._get_species_and_coords()
 
-        props = [{"SCF_energy_in_the_final_basis_set": e} for e in [-113.3256885788, -113.3260019471, -113.326006415]]
+        props = [
+            {"SCF_energy_in_the_final_basis_set": ene} for ene in [-113.3256885788, -113.3260019471, -113.326006415]
+        ]
 
         traj = Trajectory(
             species=species,
@@ -382,7 +386,7 @@ class TestTrajectory(PymatgenTest):
         pressure_2 = [2, 2.5, 2.5]
 
         # energy only properties
-        props_1 = [{"energy": e} for e in energy_1]
+        props_1 = [{"energy": ene} for ene in energy_1]
         traj_1 = Trajectory(lattice=lattice, species=species, coords=coords, frame_properties=props_1)
 
         # energy and pressure properties
@@ -468,7 +472,7 @@ class TestTrajectory(PymatgenTest):
         self._check_traj_equality(self.traj, written_traj)
 
     def test_from_file(self):
-        traj = Trajectory.from_file(f"{TEST_FILES_DIR}/LiMnO2_chgnet_relax.traj")
+        traj = Trajectory.from_file(f"{TEST_DIR}/LiMnO2_chgnet_relax.traj")
         assert isinstance(traj, Trajectory)
 
         # Check length of the trajectory

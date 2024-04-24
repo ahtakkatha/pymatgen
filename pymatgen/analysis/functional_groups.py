@@ -106,16 +106,16 @@ class FunctionalGroupExtractor:
         Returns:
             set of ints representing node indices
         """
-        heteroatoms = set()
+        hetero_atoms = set()
 
         for node in self.molgraph.graph.nodes():
             if elements is not None:
                 if str(self.species[node]) in elements:
-                    heteroatoms.add(node)
+                    hetero_atoms.add(node)
             elif str(self.species[node]) not in ["C", "H"]:
-                heteroatoms.add(node)
+                hetero_atoms.add(node)
 
-        return heteroatoms
+        return hetero_atoms
 
     def get_special_carbon(self, elements=None):
         """
@@ -279,6 +279,7 @@ class FunctionalGroupExtractor:
                         num_deviants += 1
 
                 if num_deviants <= 1:
+                    ring_group = []
                     for node in ring:
                         ring_group = copy.deepcopy(ring)
                         neighbors = self.molgraph.graph[node]

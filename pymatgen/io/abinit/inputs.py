@@ -179,6 +179,7 @@ def _stopping_criterion(run_level, accuracy):
 def _find_ecut_pawecutdg(ecut, pawecutdg, pseudos, accuracy):
     """Return a |AttrDict| with the value of ecut and pawecutdg."""
     # Get ecut and pawecutdg from the pseudo hints.
+    has_hints = False
     if ecut is None or (pawecutdg is None and any(p.ispaw for p in pseudos)):
         has_hints = all(p.has_hints for p in pseudos)
 
@@ -550,10 +551,10 @@ def calc_shiftk(structure, symprec: float = 0.01, angle_tolerance=5):
 
         elif lattice_type == "hexagonal":
             # Find the hexagonal axis and set the shift along it.
-            for i, angle in enumerate(structure.lattice.angles):
+            for i, angle in enumerate(structure.lattice.angles, start=1):
                 if abs(angle - 120) < 1.0:
-                    j = (i + 1) % 3
-                    k = (i + 2) % 3
+                    j = i % 3
+                    k = (i + 1) % 3
                     hex_ax = next(ax for ax in range(3) if ax not in [j, k])
                     break
             else:

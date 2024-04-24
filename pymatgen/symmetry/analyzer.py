@@ -62,7 +62,7 @@ class SpacegroupAnalyzer:
     Uses spglib to perform various symmetry finding operations.
     """
 
-    def __init__(self, structure: Structure, symprec: float | None = 0.01, angle_tolerance: float = 5.0) -> None:
+    def __init__(self, structure: Structure, symprec: float | None = 0.01, angle_tolerance: float = 5) -> None:
         """
         Args:
             structure (Structure/IStructure): Structure to find symmetry
@@ -73,7 +73,7 @@ class SpacegroupAnalyzer:
                 positions (e.g., structures relaxed with electronic structure
                 codes), a looser tolerance of 0.1 (the value used in Materials
                 Project) is often needed.
-            angle_tolerance (float): Angle tolerance for symmetry finding.
+            angle_tolerance (float): Angle tolerance for symmetry finding. Defaults to 5 degrees.
         """
         self._symprec = symprec
         self._angle_tol = angle_tolerance
@@ -581,6 +581,7 @@ class SpacegroupAnalyzer:
             The structure in a conventional standardized cell
         """
         tol = 1e-5
+        transf = None
         struct = self.get_refined_structure(keep_site_properties=keep_site_properties)
         lattice = struct.lattice
         latt_type = self.get_lattice_type()
@@ -718,6 +719,7 @@ class SpacegroupAnalyzer:
                 # keep the ones with the non-90 angle=alpha
                 # and b<c
                 new_matrix = None
+
                 for t in itertools.permutations(list(range(3)), 3):
                     m = lattice.matrix
                     a, b, c, alpha, beta, gamma = Lattice([m[t[0]], m[t[1]], m[t[2]]]).parameters
@@ -734,6 +736,7 @@ class SpacegroupAnalyzer:
                             [0, c * cos(alpha), c * sin(alpha)],
                         ]
                         continue
+
                     if alpha < 90 and b < c:
                         transf = np.zeros(shape=(3, 3))
                         transf[0][t[0]] = 1
@@ -745,6 +748,7 @@ class SpacegroupAnalyzer:
                             [0, b, 0],
                             [0, c * cos(alpha), c * sin(alpha)],
                         ]
+
                 if new_matrix is None:
                     # this if is to treat the case
                     # where alpha==90 (but we still have a monoclinic sg
@@ -1506,9 +1510,9 @@ def cluster_sites(mol: Molecule, tol: float, give_only_index: bool = False) -> t
             origin site, instead of the site itself. Defaults to False.
 
     Returns:
-        (origin_site, clustered_sites): origin_site is a site at the center
-        of mass (None if there are no origin atoms). clustered_sites is a
-        dict of {(avg_dist, species_and_occu): [list of sites]}
+        tuple[Site | None, dict]: origin_site is a site at the center
+            of mass (None if there are no origin atoms). clustered_sites is a
+            dict of {(avg_dist, species_and_occu): [list of sites]}
     """
     # Cluster works for dim > 2 data. We just add a dummy 0 for second
     # coordinate.
