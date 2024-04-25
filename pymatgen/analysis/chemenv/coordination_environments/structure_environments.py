@@ -19,7 +19,6 @@ from matplotlib.patches import Polygon
 from monty.json import MontyDecoder, MSONable, jsanitize
 
 from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries import AllCoordinationGeometries
-from pymatgen.analysis.chemenv.coordination_environments.coordination_geometry_finder import LocalGeometryFinder
 from pymatgen.analysis.chemenv.coordination_environments.voronoi import DetailedVoronoiContainer
 from pymatgen.analysis.chemenv.utils.chemenv_errors import ChemenvError
 from pymatgen.analysis.chemenv.utils.defs_utils import AdditionalConditions
@@ -28,7 +27,6 @@ from pymatgen.core import Element, PeriodicNeighbor, PeriodicSite, Species, Stru
 if TYPE_CHECKING:
     from typing_extensions import Self
 
-    from pymatgen.analysis.local_env import NearNeighbors
 
 __author__ = "David Waroquiers"
 __copyright__ = "Copyright 2012, The Materials Project"
@@ -1573,129 +1571,6 @@ class LightStructureEnvironments(MSONable):
             structure=structure,
             valences=valences,
             valences_origin=valences_origin,
-        )
-
-    @classmethod
-    def from_local_env(cls, near_neighbors: NearNeighbors, structure: Structure) -> Self:
-        """
-        Construct a LightStructureEnvironments object from the connectivities as determined by
-        a given pymatgen.analysis.local_env algorithm for a given structure.
-        Built similar to LobsterNeighbors.get_light_structure_environment().
-        Args:
-            near_neighbors: a pymatgen.analysis.local_env NearNeighbors class
-            structure: a pymatgen Structure object
-        Returns:
-            LightStructureEnvironments
-        """
-        # TODO think about valences
-        # TODO test for all NearNeighbors classes
-        # TODO if in pymatgen: construct tests: assert same cns for normal localenv result and chemenv'ed result p. site
-
-        nn_info = near_neighbors.get_all_nn_info(structure=structure)
-        list_coords, list_neighsite, list_neighisite = [], [], []
-        for _site_idx, site in enumerate(nn_info):
-            site_lc, site_nis, site_ns = [], [], []
-            for neighbor in site:
-                site_lc.append(neighbor["site"].coords)  # TODO remove in localenv implementation? as info redundant
-                site_nis.append(neighbor["site_index"])
-                site_ns.append(neighbor["site"])
-            list_coords.append(site_lc)
-            list_neighisite.append(site_nis)
-            list_neighsite.append(site_ns)
-
-        lgf = LocalGeometryFinder()
-        lgf.setup_structure(structure=structure)
-        list_ce_symbols: list[str | None] = []
-        list_csm: list[str | None] = []
-        list_permut: list[str | None] = []
-        for ival, _neigh_coords in enumerate(list_coords):
-            # to avoid problems if _neigh_coords is empty
-            if _neigh_coords != []:
-                lgf.setup_local_geometry(isite=ival, coords=_neigh_coords, optimization=2)
-                cncgsm = lgf.get_coordination_symmetry_measures(optimization=2)
-                # TODO discuss if handling of CN > 13 should be parameter
-                if cncgsm == {} and (len(_neigh_coords)) > 13:
-                    list_ce_symbols.append(f"UNKNOWN:{len(_neigh_coords)}")
-                    list_csm.append(None)
-                    list_permut.append(None)
-                else:
-                    list_ce_symbols.append(min(cncgsm.items(), key=lambda t: t[1]["csm_wcs_ctwcc"])[0])
-                    list_csm.append(min(cncgsm.items(), key=lambda t: t[1]["csm_wcs_ctwcc"])[1]["csm_wcs_ctwcc"])
-                    list_permut.append(min(cncgsm.items(), key=lambda t: t[1]["csm_wcs_ctwcc"])[1]["indices"])
-            else:
-                list_ce_symbols.append(None)
-                list_csm.append(None)
-                list_permut.append(None)
-
-        coordination_environments = []
-
-        all_nbs_sites = []
-        all_nbs_sites_indices = []
-        neighbors_sets = []
-        counter = 0
-        for isite in range(len(structure)):
-            all_nbs_sites_indices_here = []
-            if list_ce_symbols is not None:
-                ce_dict = {
-                    "ce_symbol": list_ce_symbols[isite],
-                    "ce_fraction": 1.0,
-                    "csm": list_csm[isite],
-                    "permutation": list_permut[isite],
-                }
-            else:
-                ce_dict = None
-
-            if list_neighisite[isite] is not None:
-                for ineighsite, neighsite in enumerate(list_neighsite[isite]):
-                    diff = neighsite.frac_coords - structure[list_neighisite[isite][ineighsite]].frac_coords
-                    rounddiff = np.round(diff)
-                    if not np.allclose(diff, rounddiff):
-                        raise ValueError(
-                            "Weird, differences between one site in a periodic image cell is not integer ..."
-                        )
-                    nb_image_cell = np.array(rounddiff, int)
-
-                    all_nbs_sites_indices_here.append(counter)
-
-                    all_nbs_sites.append(
-                        {
-                            "site": neighsite,
-                            "index": list_neighisite[isite][ineighsite],
-                            "image_cell": nb_image_cell,
-                        }
-                    )
-                    counter = counter + 1
-
-                all_nbs_sites_indices.append(all_nbs_sites_indices_here)
-            else:
-                all_nbs_sites.append({"site": None, "index": None, "image_cell": None})
-                all_nbs_sites_indices.append([])
-
-            if list_neighisite[isite] is not None:
-                nb_set = LightStructureEnvironments.NeighborsSet(
-                    structure=structure,
-                    isite=isite,
-                    all_nbs_sites=all_nbs_sites,
-                    all_nbs_sites_indices=all_nbs_sites_indices[isite],
-                )
-
-            else:
-                nb_set = LightStructureEnvironments.NeighborsSet(
-                    structure=structure,
-                    isite=isite,
-                    all_nbs_sites=[],
-                    all_nbs_sites_indices=[],
-                )
-
-            coordination_environments.append([ce_dict])
-            neighbors_sets.append([nb_set])
-
-        return cls(
-            strategy=None,
-            coordination_environments=coordination_environments,
-            all_nbs_sites=all_nbs_sites,
-            neighbors_sets=neighbors_sets,
-            structure=structure,
         )
 
     def setup_statistic_lists(self):

@@ -11,6 +11,8 @@ from pymatgen.analysis.chemenv.coordination_environments.coordination_geometry_f
     LocalGeometryFinder,
     symmetry_measure,
 )
+from pymatgen.analysis.local_env import JmolNN
+from pymatgen.core import Element
 from pymatgen.core.structure import Lattice, Structure
 from pymatgen.util.testing import TEST_FILES_DIR, PymatgenTest
 
@@ -236,3 +238,24 @@ class TestCoordinationGeometryFinder(PymatgenTest):
             se_nohints.ce_list[0][12]
         assert se_hints.ce_list[0][13][0] == se_nohints.ce_list[0][13][0]
         assert set(se_nohints.ce_list[0]).issubset(set(se_hints.ce_list[0]))
+
+    def test_from_local_env(self):
+        """
+        Test that coordination numbers as detected by NearNeighbors (localenv) algorithm
+        are the same in LightStructureEnvironments object it was converted to. Also test
+        that TL:3 ce in graphite is properly detected with this approach.
+        """
+        struct = Structure.from_file(f"{TEST_FILES_DIR}/cif/Graphite.cif")
+        c_atomic_radius = Element("C").atomic_radius
+        nn = JmolNN(tol=c_atomic_radius * 0.3, el_radius_updates={"C": c_atomic_radius})
+
+        cns_local_env = [nn.get_cn(structure=struct, n=s) for s in range(struct.num_sites)]
+
+        ces = self.lgf.compute_coordination_environments_from_local_env_connectivities(
+            near_neighbors=nn, structure=struct
+        )
+        ce_symbols = [ce[0]["ce_symbol"] for ce in ces]
+        cns_chemenv = [int(cs.split(":")[1]) for cs in ce_symbols]
+
+        assert set(ce_symbols) == {"TL:3"}
+        assert cns_chemenv == cns_local_env
