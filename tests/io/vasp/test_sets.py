@@ -128,7 +128,7 @@ class TestSetChangeCheck(PymatgenTest):
             assert hashes[input_set] == known_hashes[input_set], f"{input_set=}\n{msg}"
 
 
-class TestDictSet(PymatgenTest):
+class TestVaspInputSet(PymatgenTest):
     @classmethod
     def setUpClass(cls):
         filepath = f"{VASP_IN_DIR}/POSCAR"
@@ -136,7 +136,7 @@ class TestDictSet(PymatgenTest):
 
     def test_as_dict(self):
         # https://github.com/materialsproject/pymatgen/pull/3031
-        dict_set = DictSet(self.structure, config_dict={"INCAR": {}}, user_potcar_functional="PBE_54")
+        dict_set = VaspInputSet(self.structure, config_dict={"INCAR": {}}, user_potcar_functional="PBE_54")
         assert {*dict_set.as_dict()} >= {
             "@class",
             "@module",
@@ -228,7 +228,9 @@ class TestMITMPRelaxSet(PymatgenTest):
         ) as warns_kspacing:
             vis = self.set(structure, user_incar_settings={"KSPACING": 1, "ISMEAR": -5})
             _ = vis.incar
-        assert len(warns_kspacing) == 3
+            for warn in warns_kspacing:
+                print("scoots:", warn.message)
+        assert len(warns_kspacing) == 2
 
     def test_poscar(self):
         structure = Structure(self.lattice, ["Fe", "Mn"], self.coords)
@@ -480,25 +482,25 @@ class TestMITMPRelaxSet(PymatgenTest):
 
     def test_get_kpoints(self):
         kpoints = MPRelaxSet(self.structure).kpoints
-        assert kpoints.kpts == [[2, 4, 5]]
+        assert kpoints.kpts == [(2, 4, 5)]
         assert kpoints.style == Kpoints.supported_modes.Gamma
 
         kpoints = MPRelaxSet(self.structure, user_kpoints_settings={"reciprocal_density": 1000}).kpoints
-        assert kpoints.kpts == [[6, 10, 13]]
+        assert kpoints.kpts == [(6, 10, 13)]
         assert kpoints.style == Kpoints.supported_modes.Gamma
 
-        kpoints_obj = Kpoints(kpts=[[3, 3, 3]])
+        kpoints_obj = Kpoints(kpts=[(3, 3, 3)])
         kpoints_return = MPRelaxSet(self.structure, user_kpoints_settings=kpoints_obj).kpoints
-        assert kpoints_return.kpts == [[3, 3, 3]]
+        assert kpoints_return.kpts == [(3, 3, 3)]
 
         kpoints = self.mit_set.kpoints
-        assert kpoints.kpts == [[25]]
+        assert kpoints.kpts == [(25,)]
         assert kpoints.style == Kpoints.supported_modes.Automatic
 
         recip_param_set = MPRelaxSet(self.structure, force_gamma=True)
         recip_param_set.kpoints_settings = {"reciprocal_density": 40}
         kpoints = recip_param_set.kpoints
-        assert kpoints.kpts == [[2, 4, 5]]
+        assert kpoints.kpts == [(2, 4, 5)]
         assert kpoints.style == Kpoints.supported_modes.Gamma
 
     @skip_if_no_psp_dir
@@ -517,7 +519,7 @@ class TestMITMPRelaxSet(PymatgenTest):
         assert incar["ISMEAR"] == 1
         assert incar["SIGMA"] == 0.2
         kpoints = mp_metal_set.kpoints
-        assert_allclose(kpoints.kpts[0], [5, 5, 5])
+        assert_allclose(kpoints.kpts[0], (5, 5, 5))
 
     def test_as_from_dict(self):
         mit_set = self.set(self.structure)
@@ -646,6 +648,29 @@ class TestMITMPRelaxSet(PymatgenTest):
             )
             vis.incar.items()
 
+    def test_write_input_and_from_directory(self):
+        structure = Structure.from_spacegroup("Fm-3m", Lattice.cubic(4.0), ["Fe"], [[0.0, 0.0, 0.0]])
+
+        vis = self.set(structure=structure)
+        input_set = vis.get_input_set()
+
+        vis.write_input(output_dir=".")
+        assert all(os.path.isfile(file) for file in ("INCAR", "KPOINTS", "POSCAR", "POTCAR"))
+        input_set_from_dir = self.set().from_directory(".")
+
+        assert all(input_set_from_dir[k] == input_set[k] for k in ("INCAR", "KPOINTS", "POTCAR"))
+        # for some reason the POSCARs are not identical, but their structures and as_dict()'s are
+        assert input_set_from_dir["POSCAR"].structure == input_set["POSCAR"].structure
+        assert input_set_from_dir["POSCAR"].as_dict() == input_set["POSCAR"].as_dict()
+
+    def test_get_nedos(self):
+        vrun = Vasprun(f"{VASP_OUT_DIR}/vasprun.pbesol.xml.gz")
+        vis = self.set(structure=vrun.structures[-1])
+        # no `prev_vasprun` --> default value of NEDOS
+        assert vis._get_nedos(0.1) == 2000
+        vis.prev_vasprun = vrun
+        assert vis._get_nedos(0.1) == pytest.approx(741, abs=1)
+
 
 class TestMPStaticSet(PymatgenTest):
     def setUp(self):
@@ -687,9 +712,9 @@ class TestMPStaticSet(PymatgenTest):
         assert leps_vis.incar["EDIFF"] == 1e-5
         assert "NPAR" not in leps_vis.incar
         assert leps_vis.incar["NSW"] == 1
-        assert non_prev_vis.kpoints.kpts == [[11, 10, 10]]
+        assert non_prev_vis.kpoints.kpts == [(11, 10, 10)]
         non_prev_vis = self.set(vis.structure, reciprocal_density=200)
-        assert non_prev_vis.kpoints.kpts == [[14, 12, 12]]
+        assert non_prev_vis.kpoints.kpts == [(14, 12, 12)]
         # Check LCALCPOL flag
         lcalc_pol_vis = self.set.from_prev_calc(prev_calc_dir=prev_run, lcalcpol=True)
         assert lcalc_pol_vis.incar["LCALCPOL"]
@@ -1257,7 +1282,7 @@ class TestMITNEBSet(PymatgenTest):
 
     def test_kpoints(self):
         kpoints = self.vis.kpoints
-        assert kpoints.kpts == [[25]]
+        assert kpoints.kpts == [(25,)]
         assert kpoints.style == Kpoints.supported_modes.Automatic
 
     def test_as_from_dict(self):
@@ -1578,7 +1603,7 @@ class TestMVLScanRelaxSet(PymatgenTest):
         assert input_set.potcar.functional == "PBE_52"
 
         with pytest.raises(
-            ValueError, match=r"Invalid self.user_potcar_functional='PBE', must be one of \('PBE_52', 'PBE_54'\)"
+            ValueError, match=r"Invalid user_potcar_functional='PBE', must be one of \('PBE_52', 'PBE_54'\)"
         ):
             MVLScanRelaxSet(self.struct, user_potcar_functional="PBE")
 
@@ -1595,7 +1620,7 @@ class TestMVLScanRelaxSet(PymatgenTest):
     #
     #     # https://github.com/materialsproject/pymatgen/pull/3022
     #     # same test also in MITMPRelaxSetTest above (for redundancy,
-    #     # should apply to all classes inheriting from DictSet)
+    #     # should apply to all classes inheriting from VaspInputSet)
     #     for user_potcar_settings in [{"Fe": "Fe_pv"}, {"W": "W_pv"}, None]:
     #         for species in [("W", "W"), ("Fe", "W"), ("Fe", "Fe")]:
     #             struct = Structure(lattice=Lattice.cubic(3), species=species, coords=[[0, 0, 0], [0.5, 0.5, 0.5]])
@@ -1631,9 +1656,9 @@ class TestMPScanRelaxSet(PymatgenTest):
         assert incar["ENAUG"] == 1360
         assert incar["ENCUT"] == 680
         assert incar["NSW"] == 500
-        # the default POTCAR contains metals
+        # the default POTCAR contains metals, but no prev calc set --> bandgap unknown
         assert incar["KSPACING"] == 0.22
-        assert incar["ISMEAR"] == 2
+        assert incar["ISMEAR"] == 0
         assert incar["SIGMA"] == 0.2
 
         # https://github.com/materialsproject/pymatgen/pull/3036
@@ -1708,7 +1733,7 @@ class TestMPScanRelaxSet(PymatgenTest):
         assert input_set.potcar.functional == "PBE_54"
 
         with pytest.raises(
-            ValueError, match=r"Invalid self.user_potcar_functional='PBE', must be one of \('PBE_52', 'PBE_54'\)"
+            ValueError, match=r"Invalid user_potcar_functional='PBE', must be one of \('PBE_52', 'PBE_54'\)"
         ):
             MPScanRelaxSet(self.struct, user_potcar_functional="PBE")
 
@@ -1853,7 +1878,7 @@ class TestMVLGBSet(PymatgenTest):
         kpoints = self.d_slab["KPOINTS"]
         k_a = int(40 / (self.struct.lattice.abc[0]) + 0.5)
         k_b = int(40 / (self.struct.lattice.abc[1]) + 0.5)
-        assert kpoints.kpts == [[k_a, k_b, 1]]
+        assert kpoints.kpts == [(k_a, k_b, 1)]
 
 
 class TestMVLRelax52Set(PymatgenTest):
@@ -1878,7 +1903,7 @@ class TestMVLRelax52Set(PymatgenTest):
         assert test_potcar_set_1.potcar.functional == "PBE_52"
 
         with pytest.raises(
-            ValueError, match=r"Invalid self.user_potcar_functional='PBE', must be one of \('PBE_52', 'PBE_54'\)"
+            ValueError, match=r"Invalid user_potcar_functional='PBE', must be one of \('PBE_52', 'PBE_54'\)"
         ):
             self.set(self.struct, user_potcar_functional="PBE")
 
@@ -2062,13 +2087,13 @@ class TestMPAbsorptionSet(PymatgenTest):
         prev_run = f"{TEST_DIR}/fixtures/absorption/static"
         absorption_ipa = MPAbsorptionSet.from_prev_calc(prev_calc_dir=prev_run, mode="IPA")
         kpoints1 = absorption_ipa.kpoints
-        assert kpoints1.kpts == [[13, 13, 13]]
+        assert kpoints1.kpts == [(13, 13, 13)]
         assert kpoints1.style == Kpoints.supported_modes.Gamma
         # Check RPA kpoints
         prev_run = f"{TEST_DIR}/fixtures/absorption/ipa"
         absorption_rpa = MPAbsorptionSet.from_prev_calc(prev_run, mode="RPA")
         kpoints2 = absorption_rpa.kpoints
-        assert kpoints2.kpts == [[13, 13, 13]]
+        assert kpoints2.kpts == [(13, 13, 13)]
         assert kpoints2.style == Kpoints.supported_modes.Gamma
 
     def test_as_from_dict(self):
@@ -2092,3 +2117,11 @@ class TestMPAbsorptionSet(PymatgenTest):
 
 def test_vasp_input_set_alias():
     assert VaspInputSet is VaspInputGenerator
+
+
+def test_dict_set_alias():
+    with pytest.warns(
+        FutureWarning, match="DictSet is deprecated, and will be removed on 2025-12-31\n; use VaspInputSet"
+    ):
+        DictSet()
+    assert isinstance(DictSet(), VaspInputSet)

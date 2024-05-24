@@ -20,7 +20,7 @@ from collections.abc import Sequence
 from fractions import Fraction
 from functools import lru_cache
 from math import cos, sin
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING
 
 import numpy as np
 import scipy.cluster
@@ -34,13 +34,16 @@ from pymatgen.util.coord import find_in_coord_list, pbc_diff
 from pymatgen.util.due import Doi, due
 
 if TYPE_CHECKING:
+    from typing import Any, Literal
+
     from pymatgen.core import Element, Species
     from pymatgen.core.sites import Site
     from pymatgen.symmetry.groups import CrystalSystem
 
+    LatticeType = Literal["cubic", "hexagonal", "monoclinic", "orthorhombic", "rhombohedral", "tetragonal", "triclinic"]
+
 logger = logging.getLogger(__name__)
 
-LatticeType = Literal["cubic", "hexagonal", "monoclinic", "orthorhombic", "rhombohedral", "tetragonal", "triclinic"]
 
 cite_conventional_cell_algo = due.dcite(
     Doi("10.1016/j.commatsci.2010.05.010"),
@@ -150,7 +153,7 @@ class SpacegroupAnalyzer:
         )
 
     def get_hall(self) -> str:
-        """Returns Hall symbol for structure.
+        """Get Hall symbol for structure.
 
         Returns:
             str: Hall symbol
@@ -170,7 +173,7 @@ class SpacegroupAnalyzer:
         return spglib.get_pointgroup(rotations)[0].strip()
 
     def get_crystal_system(self) -> CrystalSystem:
-        """Get the crystal system for the structure, e.g., (triclinic, orthorhombic,
+        """Get the crystal system for the structure, e.g. (triclinic, orthorhombic,
         cubic, etc.).
 
         Raises:
@@ -200,7 +203,7 @@ class SpacegroupAnalyzer:
         return "cubic"
 
     def get_lattice_type(self) -> LatticeType:
-        """Get the lattice for the structure, e.g., (triclinic, orthorhombic, cubic,
+        """Get the lattice for the structure, e.g. (triclinic, orthorhombic, cubic,
         etc.).This is the same as the crystal system with the exception of the
         hexagonal/rhombohedral lattice.
 
@@ -219,7 +222,7 @@ class SpacegroupAnalyzer:
         return system
 
     def get_symmetry_dataset(self):
-        """Returns the symmetry dataset as a dict.
+        """Get the symmetry dataset as a dict.
 
         Returns:
             dict: With the following properties:
@@ -434,7 +437,7 @@ class SpacegroupAnalyzer:
 
     @cite_conventional_cell_algo
     def get_conventional_to_primitive_transformation_matrix(self, international_monoclinic=True):
-        """Gives the transformation matrix to transform a conventional unit cell to a
+        """Get the transformation matrix to transform a conventional unit cell to a
         primitive cell according to certain standards the standards are defined in
         Setyawan, W., & Curtarolo, S. (2010). High-throughput electronic band structure
         calculations: Challenges and tools. Computational Materials Science, 49(2),
@@ -478,7 +481,7 @@ class SpacegroupAnalyzer:
 
     @cite_conventional_cell_algo
     def get_primitive_standard_structure(self, international_monoclinic=True, keep_site_properties=False):
-        """Gives a structure with a primitive cell according to certain standards. The
+        """Get a structure with a primitive cell according to certain standards. The
         standards are defined in Setyawan, W., & Curtarolo, S. (2010). High-throughput
         electronic band structure calculations: Challenges and tools. Computational
         Materials Science, 49(2), 299-312. doi:10.1016/j.commatsci.2010.05.010.
@@ -557,7 +560,7 @@ class SpacegroupAnalyzer:
 
     @cite_conventional_cell_algo
     def get_conventional_standard_structure(self, international_monoclinic=True, keep_site_properties=False):
-        """Gives a structure with a conventional cell according to certain standards. The
+        """Get a structure with a conventional cell according to certain standards. The
         standards are defined in Setyawan, W., & Curtarolo, S. (2010). High-throughput
         electronic band structure calculations: Challenges and tools. Computational
         Materials Science, 49(2), 299-312. doi:10.1016/j.commatsci.2010.05.010 They
@@ -1148,7 +1151,7 @@ class PointGroupAnalyzer:
         return mirror_type
 
     def _get_smallest_set_not_on_axis(self, axis):
-        """Returns the smallest list of atoms with the same species and distance from
+        """Get the smallest list of atoms with the same species and distance from
         origin AND does not lie on the specified axis.
 
         This maximal set limits the possible rotational symmetry operations, since atoms
@@ -1169,7 +1172,7 @@ class PointGroupAnalyzer:
         return min(valid_sets, key=len)
 
     def _check_rot_sym(self, axis):
-        """Determines the rotational symmetry about supplied axis.
+        """Determine the rotational symmetry about supplied axis.
 
         Used only for symmetric top molecules which has possible rotational symmetry
         operations > 2.
@@ -1188,7 +1191,7 @@ class PointGroupAnalyzer:
         return 1
 
     def _check_perpendicular_r2_axis(self, axis):
-        """Checks for R2 axes perpendicular to unique axis.
+        """Check for R2 axes perpendicular to unique axis.
 
         For handling symmetric top molecules.
         """
@@ -1275,7 +1278,7 @@ class PointGroupAnalyzer:
                 break
 
     def get_pointgroup(self):
-        """Returns a PointGroup object for the molecule."""
+        """Get a PointGroup object for the molecule."""
         return PointGroupOperations(self.sch_symbol, self.symmops, self.mat_tol)
 
     def get_symmetry_operations(self):
@@ -1297,26 +1300,26 @@ class PointGroupAnalyzer:
                 symm_number += 1
         return symm_number
 
-    def is_valid_op(self, symmop) -> bool:
+    def is_valid_op(self, symm_op) -> bool:
         """Check if a particular symmetry operation is a valid symmetry operation for a
         molecule, i.e., the operation maps all atoms to another equivalent atom.
 
         Args:
-            symmop (SymmOp): Symmetry operation to test.
+            symm_op (SymmOp): Symmetry operation to test.
 
         Returns:
             bool: Whether SymmOp is valid for Molecule.
         """
         coords = self.centered_mol.cart_coords
         for site in self.centered_mol:
-            coord = symmop.operate(site.coords)
+            coord = symm_op.operate(site.coords)
             ind = find_in_coord_list(coords, coord, self.tol)
             if not (len(ind) == 1 and self.centered_mol[ind[0]].species == site.species):
                 return False
         return True
 
     def _get_eq_sets(self):
-        """Calculates the dictionary for mapping equivalent atoms onto each other.
+        """Calculate the dictionary for mapping equivalent atoms onto each other.
 
         Returns:
             dict: with two possible keys:
@@ -1409,7 +1412,7 @@ class PointGroupAnalyzer:
         return {"eq_sets": equiv_sets, "sym_ops": ops}
 
     def get_equivalent_atoms(self):
-        """Returns sets of equivalent atoms with symmetry operations.
+        """Get sets of equivalent atoms with symmetry operations.
 
         Returns:
             dict: with two possible keys:
@@ -1422,7 +1425,7 @@ class PointGroupAnalyzer:
         return self._combine_eq_sets(eq["eq_sets"], eq["sym_ops"])
 
     def symmetrize_molecule(self):
-        """Returns a symmetrized molecule.
+        """Get a symmetrized molecule.
 
         The equivalent atoms obtained via
         :meth:`~pymatgen.symmetry.analyzer.PointGroupAnalyzer.get_equivalent_atoms`
@@ -1457,7 +1460,7 @@ class PointGroupAnalyzer:
 
 
 def iterative_symmetrize(mol, max_n=10, tolerance=0.3, epsilon=1e-2):
-    """Returns a symmetrized molecule.
+    """Get a symmetrized molecule.
 
     The equivalent atoms obtained via
     :meth:`~pymatgen.symmetry.analyzer.PointGroupAnalyzer.get_equivalent_atoms`
@@ -1628,7 +1631,7 @@ class SpacegroupOperations(list):
 
 
 class PointGroupOperations(list):
-    """Defines a point group, which is essentially a sequence of symmetry operations.
+    """Represents a point group, which is a sequence of symmetry operations.
 
     Attributes:
         sch_symbol (str): Schoenflies symbol of the point group.

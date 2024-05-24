@@ -8,7 +8,7 @@ from fractions import Fraction
 from functools import reduce
 from itertools import chain, combinations, product
 from math import cos, floor, gcd
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 from monty.fractions import lcm
@@ -25,12 +25,12 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from typing import Any
 
     from numpy.typing import ArrayLike
     from typing_extensions import Self
 
-    from pymatgen.core.trajectory import Vector3D
-    from pymatgen.util.typing import CompositionLike
+    from pymatgen.util.typing import CompositionLike, Vector3D
 
 # This module implements representations of grain boundaries, as well as
 # algorithms for generating them.
@@ -89,9 +89,9 @@ class GrainBoundary(Structure):
 
                 i.  A sequence of element / species specified either as string
                     symbols, e.g. ["Li", "Fe2+", "P", ...] or atomic numbers,
-                    e.g., (3, 56, ...) or actual Element or Species objects.
+                    e.g. (3, 56, ...) or actual Element or Species objects.
 
-                ii. List of dict of elements/species and occupancies, e.g.,
+                ii. List of dict of elements/species and occupancies, e.g.
                     [{"Fe" : 0.5, "Mn":0.5}, ...]. This allows the setup of
                     disordered structures.
             coords (Nx3 array): list of fractional/cartesian coordinates for each species.
@@ -139,15 +139,8 @@ class GrainBoundary(Structure):
             properties=properties,
         )
 
-    def copy(self):
-        """
-        Convenience method to get a copy of the structure, with options to add
-        site properties.
-
-        Returns:
-            A copy of the Structure, with optionally new site_properties and
-            optionally sanitized.
-        """
+    def copy(self) -> Self:  # type: ignore[override]
+        """Make a copy of the GrainBoundary object."""
         return GrainBoundary(
             self.lattice,
             self.species_and_occu,
@@ -164,8 +157,7 @@ class GrainBoundary(Structure):
         )
 
     def get_sorted_structure(self, key=None, reverse=False):
-        """
-        Get a sorted copy of the structure. The parameters have the same
+        """Get a sorted copy of the structure. The parameters have the same
         meaning as in list.sort. By default, sites are sorted by the
         electronegativity of the species. Note that Slab has to override this
         because of the different __init__ args.
@@ -196,16 +188,12 @@ class GrainBoundary(Structure):
 
     @property
     def sigma(self) -> int:
-        """
-        This method returns the sigma value of the GB.
-        If using 'quick_gen' to generate GB, this value is not valid.
-        """
+        """The sigma value of the GB. If using 'quick_gen' to generate GB, this value is not valid."""
         return int(round(self.oriented_unit_cell.volume / self.init_cell.volume))
 
     @property
     def sigma_from_site_prop(self) -> int:
-        """
-        This method returns the sigma value of the GB from site properties.
+        """The sigma value of the GB from site properties.
         If the GB structure merge some atoms due to the atoms too closer with
         each other, this property will not work.
         """
@@ -219,7 +207,7 @@ class GrainBoundary(Structure):
 
     @property
     def top_grain(self) -> Structure:
-        """Return the top grain (Structure) of the GB."""
+        """The top grain (Structure) of the GB."""
         top_sites = []
         for i, tag in enumerate(self.site_properties["grain_label"]):
             if "top" in tag:
@@ -228,7 +216,7 @@ class GrainBoundary(Structure):
 
     @property
     def bottom_grain(self) -> Structure:
-        """Return the bottom grain (Structure) of the GB."""
+        """The bottom grain (Structure) of the GB."""
         bottom_sites = []
         for i, tag in enumerate(self.site_properties["grain_label"]):
             if "bottom" in tag:
@@ -237,7 +225,7 @@ class GrainBoundary(Structure):
 
     @property
     def coincidents(self) -> list[Site]:
-        """Return the a list of coincident sites."""
+        """The a list of coincident sites."""
         coincident_sites = []
         for idx, tag in enumerate(self.site_properties["grain_label"]):
             if "incident" in tag:
@@ -289,8 +277,7 @@ class GrainBoundary(Structure):
 
     @classmethod
     def from_dict(cls, dct: dict) -> GrainBoundary:  # type: ignore[override]
-        """
-        Generates a GrainBoundary object from a dictionary created by as_dict().
+        """Generate a GrainBoundary object from a dictionary created by as_dict().
 
         Args:
             dct: dict
@@ -401,7 +388,7 @@ class GrainBoundaryGenerator:
         tol_coi=1.0e-8,
         rm_ratio=0.7,
         quick_gen=False,
-    ):
+    ) -> GrainBoundary:
         """
         Args:
             rotation_axis (list): Rotation axis of GB in the form of a list of integer
@@ -868,8 +855,7 @@ class GrainBoundaryGenerator:
         max_search=20,
         quick_gen=False,
     ):
-        """
-        Find the two transformation matrix for each grain from given rotation axis,
+        """Find the two transformation matrix for each grain from given rotation axis,
         GB plane, rotation angle and corresponding ratio (see explanation for ratio
         below).
         The structure of each grain can be obtained by applying the corresponding
@@ -1289,8 +1275,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def enum_sigma_cubic(cutoff, r_axis):
-        """
-        Find all possible sigma values and corresponding rotation angles
+        """Find all possible sigma values and corresponding rotation angles
         within a sigma value cutoff with known rotation axis in cubic system.
         The algorithm for this code is from reference, Acta Cryst, A40,108(1984).
 
@@ -1361,8 +1346,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def enum_sigma_hex(cutoff, r_axis, c2_a2_ratio):
-        """
-        Find all possible sigma values and corresponding rotation angles
+        """Find all possible sigma values and corresponding rotation angles
         within a sigma value cutoff with known rotation axis in hexagonal system.
         The algorithm for this code is from reference, Acta Cryst, A38,550(1982).
 
@@ -1374,14 +1358,15 @@ class GrainBoundaryGenerator:
                 which is rational number. If irrational, set c2_a2_ratio = None
 
         Returns:
-            sigmas (dict): dictionary with keys as the possible integer sigma values and values as list of the
-                possible rotation angles to the corresponding sigma values. e.g. the format as
-                    {sigma1: [angle11,angle12,...], sigma2: [angle21, angle22,...],...}
-                Note: the angles are the rotation angle of one grain respect to the
-                other grain.
-                When generate the microstructure of the grain boundary using these
-                angles, you need to analyze the symmetry of the structure. Different
-                angles may result in equivalent microstructures.
+            dict: sigmas dictionary with keys as the possible integer sigma values
+                and values as list of the possible rotation angles to the
+                corresponding sigma values. e.g. the format as
+                {sigma1: [angle11,angle12,...], sigma2: [angle21, angle22,...],...}
+                Note: the angles are the rotation angles of one grain respect to
+                the other grain.
+                When generate the microstructures of the grain boundary using these angles,
+                you need to analyze the symmetry of the structure. Different angles may
+                result in equivalent microstructures.
         """
         sigmas = {}
         # make sure gcd(r_axis)==1
@@ -1470,8 +1455,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def enum_sigma_rho(cutoff, r_axis, ratio_alpha):
-        """
-        Find all possible sigma values and corresponding rotation angles
+        """Find all possible sigma values and corresponding rotation angles
         within a sigma value cutoff with known rotation axis in rhombohedral system.
         The algorithm for this code is from reference, Acta Cryst, A45,505(1989).
 
@@ -1486,17 +1470,14 @@ class GrainBoundaryGenerator:
                     If irrational, set ratio_alpha = None.
 
         Returns:
-            sigmas (dict):
-                    dictionary with keys as the possible integer sigma values
-                    and values as list of the possible rotation angles to the
-                    corresponding sigma values.
-                    e.g. the format as
-                    {sigma1: [angle11,angle12,...], sigma2: [angle21, angle22,...],...}
-                    Note: the angles are the rotation angle of one grain respect to the
-                    other grain.
-                    When generate the microstructure of the grain boundary using these
-                    angles, you need to analyze the symmetry of the structure. Different
-                    angles may result in equivalent microstructures.
+            dict[int, list[float]]: keys are possible integer sigma values
+                and values are lists of possible rotation angles to the
+                {sigma1: [angle11, angle12,...], sigma2: [angle21, angle22,...],...}
+                Note: the angles are the rotation angle of one grain respect to the
+                other grain.
+                When generating the microstructure of the grain boundary using these
+                angles, you need to analyze the symmetry of the structure. Different
+                angles may result in equivalent microstructures.
         """
         sigmas = {}
         # transform four index notation to three index notation
@@ -1600,8 +1581,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def enum_sigma_tet(cutoff, r_axis, c2_a2_ratio):
-        """
-        Find all possible sigma values and corresponding rotation angles
+        """Find all possible sigma values and corresponding rotation angles
         within a sigma value cutoff with known rotation axis in tetragonal system.
         The algorithm for this code is from reference, Acta Cryst, B46,117(1990).
 
@@ -1701,8 +1681,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def enum_sigma_ort(cutoff, r_axis, c2_b2_a2_ratio):
-        """
-        Find all possible sigma values and corresponding rotation angles
+        """Find all possible sigma values and corresponding rotation angles
         within a sigma value cutoff with known rotation axis in orthorhombic system.
         The algorithm for this code is from reference, Scipta Metallurgica 27, 291(1992).
 
@@ -1835,8 +1814,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def enum_possible_plane_cubic(plane_cutoff, r_axis, r_angle):
-        """
-        Find all possible plane combinations for GBs given a rotation axis and angle for
+        """Find all possible plane combinations for GBs given a rotation axis and angle for
         cubic system, and classify them to different categories, including 'Twist',
         'Symmetric tilt', 'Normal tilt', 'Mixed' GBs.
 
@@ -1901,8 +1879,7 @@ class GrainBoundaryGenerator:
 
     @staticmethod
     def get_rotation_angle_from_sigma(sigma, r_axis, lat_type="C", ratio=None):
-        """
-        Find all possible rotation angle for the given sigma value.
+        """Find all possible rotation angle for the given sigma value.
 
         Args:
             sigma (int): sigma value provided
@@ -2364,23 +2341,23 @@ class Interface(Structure):
         vacuum_over_film: float = 0,
         interface_properties: dict | None = None,
     ) -> None:
-        """Makes an interface structure, a structure object with additional information
+        """Make an interface structure, a structure object with additional information
         and methods pertaining to interfaces.
 
         Args:
             lattice (Lattice/3x3 array): The lattice, either as a
                 pymatgen.core.Lattice or
                 simply as any 2D array. Each row should correspond to a lattice
-                vector. E.g., [[10,0,0], [20,10,0], [0,0,30]] specifies a
+                vector. e.g. [[10,0,0], [20,10,0], [0,0,30]] specifies a
                 lattice with lattice vectors [10,0,0], [20,10,0] and [0,0,30].
             species ([Species]): Sequence of species on each site. Can take in
                 flexible input, including:
 
                 i.  A sequence of element / species specified either as string
                     symbols, e.g. ["Li", "Fe2+", "P", ...] or atomic numbers,
-                    e.g., (3, 56, ...) or actual Element or Species objects.
+                    e.g. (3, 56, ...) or actual Element or Species objects.
 
-                ii. List of dict of elements/species and occupancies, e.g.,
+                ii. List of dict of elements/species and occupancies, e.g.
                     [{"Fe" : 0.5, "Mn":0.5}, ...]. This allows the setup of
                     disordered structures.
             coords (Nx3 array): list of fractional/cartesian coordinates of
@@ -2391,7 +2368,7 @@ class Interface(Structure):
             coords_are_cartesian (bool): Set to True if you are providing
                 coordinates in Cartesian coordinates. Defaults to False.
             site_properties (dict): Properties associated with the sites as a
-                dict of sequences, e.g., {"magmom":[5,5,5,5]}. The sequences
+                dict of sequences, e.g. {"magmom":[5,5,5,5]}. The sequences
                 have to be the same length as the atomic species and
                 fractional_coords. Defaults to None for no properties.
             in_plane_offset: fractional shift in plane for the film with respect
@@ -2491,7 +2468,7 @@ class Interface(Structure):
 
     @property
     def film_sites(self) -> list[Site]:
-        """Return the film sites of the interface."""
+        """The film sites of the interface."""
         return [site for site, tag in zip(self, self.site_properties["interface_label"]) if "film" in tag]
 
     @property
@@ -2499,11 +2476,8 @@ class Interface(Structure):
         """A pymatgen Structure for just the film."""
         return Structure.from_sites(self.film_sites)
 
-    def copy(self):
-        """
-        Returns:
-            Interface: A copy of the Interface.
-        """
+    def copy(self) -> Self:  # type: ignore[override]
+        """Make a copy of the Interface."""
         return Interface.from_dict(self.as_dict())
 
     def get_sorted_structure(self, key=None, reverse=False) -> Structure:
@@ -2523,7 +2497,7 @@ class Interface(Structure):
         return struct_copy
 
     def get_shifts_based_on_adsorbate_sites(self, tolerance: float = 0.1) -> list[tuple[float, float]]:
-        """Computes possible in-plane shifts based on an adsorbate site  algorithm.
+        """Compute possible in-plane shifts based on an adsorbate site algorithm.
 
         Args:
             tolerance: tolerance for "uniqueness" for shifts in Cartesian unit
@@ -2647,7 +2621,7 @@ class Interface(Structure):
         interface_properties: dict | None = None,
         center_slab: bool = True,
     ) -> Self:
-        """Makes an interface structure by merging a substrate and film slabs
+        """Make an interface structure by merging a substrate and film slabs
         The film a- and b-vectors will be forced to be the substrate slab's
         a- and b-vectors.
 
@@ -2719,7 +2693,7 @@ class Interface(Structure):
 
         # Shift coords to center
         if center_slab:
-            coords = np.add(coords, [0, 0, 0.5 - np.average(coords[:, 2])])
+            coords = np.add(coords, [0, 0, 0.5 - np.mean(coords[:, 2])])
 
         # Only merge site properties in both slabs
         site_properties = {}
@@ -2778,10 +2752,8 @@ def label_termination(slab: Structure) -> str:
     for idx, cluster in enumerate(clusters):
         clustered_sites[cluster].append(slab[idx])
 
-    plane_heights = {
-        np.average(np.mod([s.frac_coords[2] for s in sites], 1)): c for c, sites in clustered_sites.items()
-    }
-    top_plane_cluster = sorted(plane_heights.items(), key=lambda x: x[0])[-1][1]
+    plane_heights = {np.mean(np.mod([s.frac_coords[2] for s in sites], 1)): c for c, sites in clustered_sites.items()}
+    top_plane_cluster = max(plane_heights.items(), key=lambda x: x[0])[1]
     top_plane_sites = clustered_sites[top_plane_cluster]
     top_plane = Structure.from_sites(top_plane_sites)
 
@@ -2794,16 +2766,16 @@ def count_layers(struct: Structure, el=None) -> int:
     """Counts the number of 'layers' along the c-axis."""
     el = el or struct.elements[0]
     frac_coords = [site.frac_coords for site in struct if site.species_string == str(el)]
-    n = len(frac_coords)
+    n_el_sites = len(frac_coords)
 
-    if n == 1:
+    if n_el_sites == 1:
         return 1
 
-    dist_matrix = np.zeros((n, n))
+    dist_matrix = np.zeros((n_el_sites, n_el_sites))
     h = struct.lattice.c
     # Projection of c lattice vector in
     # direction of surface normal.
-    for ii, jj in combinations(list(range(n)), 2):
+    for ii, jj in combinations(list(range(n_el_sites)), 2):
         if ii != jj:
             cdist = frac_coords[ii][2] - frac_coords[jj][2]
             cdist = abs(cdist - round(cdist)) * h
@@ -2818,8 +2790,6 @@ def count_layers(struct: Structure, el=None) -> int:
     for idx, cluster in enumerate(clusters):
         clustered_sites[cluster].append(struct[idx])
 
-    plane_heights = {
-        np.average(np.mod([s.frac_coords[2] for s in sites], 1)): c for c, sites in clustered_sites.items()
-    }
+    plane_heights = {np.mean(np.mod([s.frac_coords[2] for s in sites], 1)): c for c, sites in clustered_sites.items()}
 
     return len(plane_heights)

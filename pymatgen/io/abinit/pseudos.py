@@ -14,8 +14,8 @@ import shutil
 import sys
 import tempfile
 import traceback
-from collections import defaultdict, namedtuple
-from typing import TYPE_CHECKING
+from collections import defaultdict
+from typing import TYPE_CHECKING, NamedTuple
 from xml.etree import ElementTree as Et
 
 import numpy as np
@@ -33,8 +33,10 @@ from pymatgen.util.plotting import add_fig_kwargs, get_ax_fig
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
+    from typing import Any, ClassVar
 
     import matplotlib.pyplot as plt
+    from numpy.typing import NDArray
     from typing_extensions import Self
 
     from pymatgen.core import Structure
@@ -51,7 +53,7 @@ __maintainer__ = "Matteo Giantomassi"
 
 
 def straceback():
-    """Returns a string with the traceback."""
+    """Get a string with the traceback."""
 
     return "\n".join((traceback.format_exc(), str(sys.exc_info()[0])))
 
@@ -140,13 +142,15 @@ class Pseudo(MSONable, abc.ABC):
         """String representation."""
 
         lines: list[str] = []
-        lines.append(f"<{type(self).__name__}: {self.basename}>")
-        lines.append("  summary: " + self.summary.strip())
-        lines.append(f"  number of valence electrons: {self.Z_val}")
-        lines.append(f"  maximum angular momentum: {l2str(self.l_max)}")
-        lines.append(f"  angular momentum for local part: {l2str(self.l_local)}")
-        lines.append(f"  XC correlation: {self.xc}")
-        lines.append(f"  supports spin-orbit: {self.supports_soc}")
+        lines += (
+            f"<{type(self).__name__}: {self.basename}>",
+            "  summary: " + self.summary.strip(),
+            f"  number of valence electrons: {self.Z_val}",
+            f"  maximum angular momentum: {l2str(self.l_max)}",
+            f"  angular momentum for local part: {l2str(self.l_local)}",
+            f"  XC correlation: {self.xc}",
+            f"  supports spin-orbit: {self.supports_soc}",
+        )
 
         if self.isnc:
             lines.append(f"  radius for non-linear core correction: {self.nlcc_radius}")
@@ -316,8 +320,7 @@ class Pseudo(MSONable, abc.ABC):
         # return None
 
     def hint_for_accuracy(self, accuracy="normal"):
-        """
-        Returns a Hint object with the suggested value of ecut [Ha] and
+        """Get a Hint object with the suggested value of ecut [Ha] and
         pawecutdg [Ha] for the given accuracy.
         ecut and pawecutdg are set to zero if no hint is available.
 
@@ -588,7 +591,7 @@ class Hint:
         return cls(**{k: v for k, v in dct.items() if not k.startswith("@")})
 
 
-def _dict_from_lines(lines, key_nums, sep=None):
+def _dict_from_lines(lines, key_nums, sep=None) -> dict:
     """
     Helper function to parse formatted text structured like:
 
@@ -621,10 +624,9 @@ def _dict_from_lines(lines, key_nums, sep=None):
         line = lines[idx]
 
         tokens = [tok.strip() for tok in line.split()]
-        values, keys = tokens[:nk], "".join(tokens[nk:])
+        values = tokens[:nk]
         # Sanitize keys: In some case we might get strings in the form: foo[,bar]
-        keys.replace("[", "").replace("]", "")
-        keys = keys.split(",")
+        keys = "".join(tokens[nk:]).replace("[", "").replace("]", "").split(",")
 
         if sep is not None:
             check = keys[0][0]
@@ -673,7 +675,7 @@ def _int_from_str(string):
 class NcAbinitHeader(AbinitHeader):
     """The abinit header found in the NC pseudopotential files."""
 
-    _VARS = dict(
+    _VARS: ClassVar = dict(
         zatom=(None, _int_from_str),
         zion=(None, float),
         pspdat=(None, float),
@@ -719,8 +721,7 @@ class NcAbinitHeader(AbinitHeader):
 
     @staticmethod
     def fhi_header(filename, ppdesc):
-        """
-        Parse the FHI abinit header. Example:
+        """Parse the FHI abinit header. Example:
 
         Troullier-Martins psp for element  Sc        Thu Oct 27 17:33:22 EDT 1994
             21.00000   3.00000    940714                zatom, zion, pspdat
@@ -741,8 +742,7 @@ class NcAbinitHeader(AbinitHeader):
 
     @staticmethod
     def hgh_header(filename, ppdesc):
-        """
-        Parse the HGH abinit header. Example:
+        """Parse the HGH abinit header. Example:
 
         Hartwigsen-Goedecker-Hutter psp for Ne,  from PRB58, 3641 (1998)
             10   8  010605 zatom,zion,pspdat
@@ -757,8 +757,7 @@ class NcAbinitHeader(AbinitHeader):
 
     @staticmethod
     def gth_header(filename, ppdesc):
-        """
-        Parse the GTH abinit header. Example:
+        """Parse the GTH abinit header. Example:
 
         Goedecker-Teter-Hutter  Wed May  8 14:27:44 EDT 1996
         1   1   960508                     zatom,zion,pspdat
@@ -777,8 +776,7 @@ class NcAbinitHeader(AbinitHeader):
 
     @staticmethod
     def oncvpsp_header(filename, ppdesc):
-        """
-        Parse the ONCVPSP abinit header. Example:
+        """Parse the ONCVPSP abinit header. Example:
 
         Li    ONCVPSP  r_core=  2.01  3.02
               3.0000      3.0000      140504    zatom,zion,pspd
@@ -806,8 +804,7 @@ class NcAbinitHeader(AbinitHeader):
 
     @staticmethod
     def tm_header(filename, ppdesc):
-        """
-        Parse the TM abinit header. Example:
+        """Parse the TM abinit header. Example:
 
         Troullier-Martins psp for element Fm         Thu Oct 27 17:28:39 EDT 1994
         100.00000  14.00000    940714                zatom, zion, pspdat
@@ -869,7 +866,7 @@ class NcAbinitHeader(AbinitHeader):
 class PawAbinitHeader(AbinitHeader):
     """The abinit header found in the PAW pseudopotential files."""
 
-    _VARS = dict(
+    _VARS: ClassVar = dict(
         zatom=(None, _int_from_str),
         zion=(None, float),
         pspdat=(None, float),
@@ -917,8 +914,7 @@ class PawAbinitHeader(AbinitHeader):
 
     @staticmethod
     def paw_header(filename, ppdesc):
-        """
-        Parse the PAW abinit header. Examples:
+        """Parse the PAW abinit header. Examples:
 
         Paw atomic data for element Ni - Generated by AtomPAW (N. Holzwarth) + AtomPAW2Abinit v3.0.5
           28.000  18.000 20061204               : zatom,zion,pspdat
@@ -1007,11 +1003,16 @@ class PseudoParser:
 
     Error = PseudoParseError
 
-    # Supported values of pspcod
-    ppdesc = namedtuple("ppdesc", "pspcod name psp_type format")
+    class ppdesc(NamedTuple):
+        """Supported values of pspcod."""
+
+        pspcod: int
+        name: str
+        psp_type: str
+        format: None
 
     # TODO Recheck
-    _PSPCODES = {
+    _PSPCODES: ClassVar = {
         1: ppdesc(1, "TM", "NC", None),
         2: ppdesc(2, "GTH", "NC", None),
         3: ppdesc(3, "HGH", "NC", None),
@@ -1168,11 +1169,14 @@ class PseudoParser:
         return pseudo
 
 
-# TODO use RadialFunction from pseudo_dojo.
-class RadialFunction(namedtuple("RadialFunction", "mesh values")):
-    """Radial Function class."""
+class RadialFunction(NamedTuple):
+    """Radial Function class.
 
-    __slots__ = ()
+    TODO: use RadialFunction from pseudo_dojo.
+    """
+
+    mesh: Any
+    values: NDArray
 
 
 class PawXmlSetup(Pseudo, PawPseudo):
@@ -1244,8 +1248,7 @@ class PawXmlSetup(Pseudo, PawPseudo):
             self.rad_grids[gid] = self._eval_grid(grid_params)
 
     def __getstate__(self):
-        """
-        Return state is pickled as the contents for the instance.
+        """Get state is pickled as the contents for the instance.
 
         In this case we just remove the XML root element process since Element object cannot be pickled.
         """
@@ -1294,9 +1297,8 @@ class PawXmlSetup(Pseudo, PawPseudo):
 
     @staticmethod
     def _eval_grid(grid_params):
-        """
-        This function receives a dictionary with the parameters defining the
-        radial mesh and returns a `ndarray` with the mesh.
+        """For a dictionary with the parameters defining the
+        radial mesh, get a `ndarray` with the mesh.
         """
         eq = grid_params.get("eq").replace(" ", "")
         istart, iend = int(grid_params.get("istart")), int(grid_params.get("iend"))
@@ -1527,16 +1529,11 @@ class PseudoTable(collections.abc.Sequence, MSONable):
 
     For example, the following all retrieve iron:
 
-    print elements[26]
-    Fe
-    print elements.Fe
-    Fe
-    print elements.symbol('Fe')
-    Fe
-    print elements.name('iron')
-    Fe
-    print elements.isotope('Fe')
-    Fe
+    print(elements[26])
+    print(elements.Fe)
+    print(elements.symbol('Fe'))
+    print(elements.name('iron'))
+    print(elements.isotope('Fe'))
     """
 
     @classmethod
@@ -1546,8 +1543,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
 
     @classmethod
     def from_dir(cls, top, exts=None, exclude_dirs="_*") -> Self | None:
-        """
-        Find all pseudos in the directory tree starting from top.
+        """Find all pseudos in the directory tree starting from top.
 
         Args:
             top: Top of the directory tree
@@ -1693,8 +1689,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         return all(self[z] for z in range(1, zmax))
 
     def all_combinations_for_elements(self, element_symbols):
-        """
-        Return a list with all the possible combination of pseudos
+        """Get a list with all the possible combination of pseudos
         for the given list of element_symbols.
         Each item is a list of pseudopotential objects.
 
@@ -1710,8 +1705,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         return list(product(*dct.values()))
 
     def pseudo_with_symbol(self, symbol, allow_multi=False):
-        """
-        Return the pseudo with the given chemical symbol.
+        """Get the pseudo with the given chemical symbol.
 
         Args:
             symbols: String with the chemical symbol of the element
@@ -1728,8 +1722,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         return pseudos if allow_multi else pseudos[0]
 
     def pseudos_with_symbols(self, symbols):
-        """
-        Return the pseudos with the given chemical symbols.
+        """Get the pseudos with the given chemical symbols.
 
         Raises:
             ValueError if one of the symbols is not found or multiple occurrences are present.
@@ -1746,8 +1739,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         return pseudos
 
     def select_symbols(self, symbols, ret_list=False):
-        """
-        Return a PseudoTable with the pseudopotentials with the given list of chemical symbols.
+        """Get a PseudoTable with the pseudopotentials with the given list of chemical symbols.
 
         Args:
             symbols: str or list of symbols
@@ -1780,8 +1772,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         return type(self)(pseudos)
 
     def get_pseudos_for_structure(self, structure: Structure):
-        """
-        Return the list of Pseudo objects to be used for this Structure.
+        """Get the list of Pseudo objects to be used for this Structure.
 
         Args:
             structure: pymatgen Structure.
@@ -1819,8 +1810,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         )
 
     def sorted(self, attrname, reverse=False):
-        """
-        Sort the table according to the value of attribute attrname.
+        """Sort the table according to the value of attribute attrname.
 
         Returns:
             New class: `PseudoTable` object
@@ -1857,8 +1847,7 @@ class PseudoTable(collections.abc.Sequence, MSONable):
         return self.select(condition=lambda p: p.has_dojo_report)
 
     def select_rows(self, rows):
-        """
-        Return new class:`PseudoTable` object with pseudos in the given rows of the periodic table.
+        """Get new class:`PseudoTable` object with pseudos in the given rows of the periodic table.
         rows can be either a int or a list of integers.
         """
         if not isinstance(rows, (list, tuple)):

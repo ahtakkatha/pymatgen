@@ -5,12 +5,18 @@ from __future__ import annotations
 import re
 
 import requests
-from bs4 import BeautifulSoup
+from monty.dev import requires
+
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    BeautifulSoup = None
 
 
 class VaspDoc:
     """A VASP documentation helper."""
 
+    @requires(BeautifulSoup, "BeautifulSoup must be installed to fetch from the VASP wiki.")
     def __init__(self) -> None:
         """Init for VaspDoc."""
         self.url_template = "http://www.vasp.at/wiki/index.php/%s"
@@ -38,11 +44,10 @@ class VaspDoc:
 
     @classmethod
     def get_help(cls, tag: str, fmt: str = "text") -> str:
-        """
-        Get help on a VASP tag.
+        """Get help on a VASP tag.
 
         Args:
-            tag (str): VASP tag, e.g., ISYM.
+            tag (str): VASP tag, e.g. ISYM.
 
         Returns:
             Help text.
@@ -61,7 +66,7 @@ class VaspDoc:
 
     @classmethod
     def get_incar_tags(cls) -> list[str]:
-        """Returns: All incar tags."""
+        """Get a list of all INCAR tags from the VASP wiki."""
         tags = []
         for page in [
             "https://www.vasp.at/wiki/index.php/Category:INCAR",
